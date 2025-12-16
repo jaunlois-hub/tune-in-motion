@@ -143,6 +143,19 @@ export const TUNINGS: Tuning[] = [
       { string: 1, note: 'E', octave: 4, frequency: 329.63 },
     ],
   },
+  {
+    id: 'standard-c-sharp',
+    name: 'Standard C#',
+    description: 'C# F# B E G# C#',
+    notes: [
+      { string: 6, note: 'C#', octave: 2, frequency: 69.30 },
+      { string: 5, note: 'F#', octave: 2, frequency: 92.50 },
+      { string: 4, note: 'B', octave: 2, frequency: 123.47 },
+      { string: 3, note: 'E', octave: 3, frequency: 164.81 },
+      { string: 2, note: 'G#', octave: 3, frequency: 207.65 },
+      { string: 1, note: 'C#', octave: 4, frequency: 277.18 },
+    ],
+  },
 ];
 
 export function findClosestNote(frequency: number, tuning: Tuning): TuningNote | null {
