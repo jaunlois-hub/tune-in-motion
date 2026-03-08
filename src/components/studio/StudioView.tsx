@@ -119,6 +119,7 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
 }
 
 export function StudioView() {
+  const [toneMatchOpen, setToneMatchOpen] = useState(true);
   const [effectsOpen, setEffectsOpen] = useState(true);
   const [drumsOpen, setDrumsOpen] = useState(true);
   const [presetsOpen, setPresetsOpen] = useState(false);
