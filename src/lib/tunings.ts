@@ -8,7 +8,7 @@ export interface TuningNote {
 export interface Tuning {
   id: string;
   name: string;
-  category: 'guitar' | 'bass' | 'ukulele';
+  category: 'guitar' | 'bass' | 'ukulele' | 'banjo' | 'mandolin' | 'violin' | '7string' | '12string';
   description: string;
   notes: TuningNote[];
 }
