@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2 } from 'lucide-react';
+import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { matchPresetsToTitle, type TonePreset } from '@/lib/tonePresets';
