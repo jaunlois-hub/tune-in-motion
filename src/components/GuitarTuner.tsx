@@ -38,6 +38,12 @@ export function GuitarTuner() {
     }
   };
 
+  const targetNote = pitchData
+    ? findClosestNote(pitchData.frequency, selectedTuning)
+    : null;
+
+  const isActive = isListening && pitchData !== null;
+
   // Log readings while tuning
   useEffect(() => {
     if (pitchData && isListening && targetNote) {
@@ -59,12 +65,6 @@ export function GuitarTuner() {
     }
     wasListeningRef.current = isListening;
   }, [isListening, endSession]);
-
-  const targetNote = pitchData
-    ? findClosestNote(pitchData.frequency, selectedTuning)
-    : null;
-
-  const isActive = isListening && pitchData !== null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
