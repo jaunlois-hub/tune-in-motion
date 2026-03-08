@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3 } from 'lucide-react';
+import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { useLoopRecorder } from '@/hooks/useLoopRecorder';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
+import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
@@ -118,6 +119,7 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
 }
 
 export function StudioView() {
+  const [toneMatchOpen, setToneMatchOpen] = useState(true);
   const [effectsOpen, setEffectsOpen] = useState(true);
   const [drumsOpen, setDrumsOpen] = useState(true);
   const [presetsOpen, setPresetsOpen] = useState(false);
@@ -174,6 +176,29 @@ export function StudioView() {
           </div>
         </div>
       </div>
+
+      {/* YouTube Tone Matcher */}
+      <Collapsible open={toneMatchOpen} onOpenChange={setToneMatchOpen}>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Youtube className="w-5 h-5 text-destructive" />
+                <h2 className="font-display text-lg font-bold">🎯 Tone Matcher</h2>
+                <span className="text-[10px] text-muted-foreground">Paste a YouTube link → auto-match effects</span>
+              </div>
+              {toneMatchOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <YouTubeToneMatcher onApplyPreset={(s) => {
+                Object.entries(s).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+              }} />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
 
       {/* Loop Recorder */}
       <div className="bg-card/50 border border-border rounded-2xl p-4 sm:p-6">
