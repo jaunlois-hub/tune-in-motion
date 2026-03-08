@@ -116,6 +116,7 @@ function SessionRow({ session }: { session: TuningSession }) {
 
 export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<'list' | 'chart'>('list');
 
   if (!isOpen) {
     return (
