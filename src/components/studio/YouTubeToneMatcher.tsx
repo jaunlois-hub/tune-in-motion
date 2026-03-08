@@ -22,6 +22,7 @@ function extractVideoId(url: string): string | null {
 
 interface YouTubeToneMatcherProps {
   onApplyPreset: (settings: EffectSettings) => void;
+  onSavePreset?: (artist: string, song: string) => void;
 }
 
 export function YouTubeToneMatcher({ onApplyPreset }: YouTubeToneMatcherProps) {
