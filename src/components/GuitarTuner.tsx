@@ -32,10 +32,33 @@ export function GuitarTuner() {
     if (isListening) {
       stopListening();
       stopTone();
+      endSession();
     } else {
       startListening();
     }
   };
+
+  // Log readings while tuning
+  useEffect(() => {
+    if (pitchData && isListening && targetNote) {
+      logReading(
+        pitchData.note,
+        pitchData.octave,
+        pitchData.cents,
+        pitchData.frequency,
+        targetNote.frequency,
+        selectedTuning.name,
+      );
+    }
+  }, [pitchData, isListening, targetNote, selectedTuning.name, logReading]);
+
+  // End session if listening stops externally
+  useEffect(() => {
+    if (wasListeningRef.current && !isListening) {
+      endSession();
+    }
+    wasListeningRef.current = isListening;
+  }, [isListening, endSession]);
 
   const targetNote = pitchData
     ? findClosestNote(pitchData.frequency, selectedTuning)
