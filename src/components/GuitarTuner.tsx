@@ -66,34 +66,12 @@ export function GuitarTuner() {
   }, [isListening, endSession]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="pt-6 pb-2 px-4">
-        <div className="flex items-center justify-center gap-3 relative">
-          {/* Theme toggle - top right */}
-          <div className="absolute right-0 top-0">
-            <ThemeToggle />
-          </div>
-          <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
-          <div className="text-center">
-            <h1 className="font-display text-xl md:text-2xl font-black tracking-widest text-glow uppercase">
-              Bleed Out Zone
-            </h1>
-            <p className="font-display text-[10px] tracking-[0.3em] text-primary/70 uppercase -mt-0.5">
-              Strobe Tuner by JLo
-            </p>
-          </div>
-          <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
+    <div className="flex flex-col items-center gap-4 md:gap-6">
+      {error && (
+        <div className="bg-destructive/20 border border-destructive/50 text-destructive rounded-lg px-4 py-3 text-sm max-w-md text-center">
+          {error}
         </div>
-      </header>
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-6 gap-4 md:gap-6">
-        {error && (
-          <div className="bg-destructive/20 border border-destructive/50 text-destructive rounded-lg px-4 py-3 text-sm max-w-md text-center">
-            {error}
-          </div>
-        )}
+      )}
 
         {/* Controls row */}
         <div className="flex flex-col items-center gap-3 w-full">
