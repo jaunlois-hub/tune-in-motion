@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Guitar, Gauge, Mic2, Skull } from 'lucide-react';
+import { Guitar, Gauge, Mic2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GuitarTuner } from '@/components/GuitarTuner';
 import { MetronomeView } from '@/components/metronome/MetronomeView';
