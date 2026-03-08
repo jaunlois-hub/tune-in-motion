@@ -146,6 +146,16 @@ export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProp
         </div>
         <div className="flex items-center gap-1">
           {sessions.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setView(view === 'list' ? 'chart' : 'list')}
+              className="w-7 h-7 text-muted-foreground hover:text-foreground"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {sessions.length > 0 && (
             <Button variant="ghost" size="icon" onClick={onClear} className="w-7 h-7 text-muted-foreground hover:text-destructive">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
