@@ -14,6 +14,8 @@ import { FrequencyDisplay } from './FrequencyDisplay';
 import { A4Calibration } from './A4Calibration';
 import { SignalStrength } from './SignalStrength';
 import { ThemeToggle } from './ThemeToggle';
+import { TuningHistoryPanel } from './TuningHistoryPanel';
+import { useTuningHistory } from '@/hooks/useTuningHistory';
 
 type TunerMode = 'strobe' | 'needle';
 
