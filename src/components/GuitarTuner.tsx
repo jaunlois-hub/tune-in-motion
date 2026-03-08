@@ -134,24 +134,30 @@ export function GuitarTuner() {
           )}
         </Button>
 
-        {/* Status indicator */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div
-            className={`w-2 h-2 rounded-full transition-colors ${
-              isListening
-                ? pitchData
-                  ? 'bg-tuner-perfect animate-pulse-glow'
-                  : 'bg-primary animate-pulse'
-                : 'bg-muted-foreground'
-            }`}
+        {/* Signal strength + status */}
+        <div className="flex items-center justify-center gap-4">
+          <SignalStrength
+            clarity={pitchData?.clarity || 0}
+            isActive={isListening && pitchData !== null}
           />
-          <span>
-            {isListening
-              ? pitchData
-                ? 'Signal detected'
-                : 'Listening...'
-              : 'Tap START to begin'}
-          </span>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div
+              className={`w-2 h-2 rounded-full transition-colors ${
+                isListening
+                  ? pitchData
+                    ? 'bg-tuner-perfect animate-pulse-glow'
+                    : 'bg-primary animate-pulse'
+                  : 'bg-muted-foreground'
+              }`}
+            />
+            <span>
+              {isListening
+                ? pitchData
+                  ? 'Signal detected'
+                  : 'Listening...'
+                : 'Tap START to begin'}
+            </span>
+          </div>
         </div>
       </main>
 
