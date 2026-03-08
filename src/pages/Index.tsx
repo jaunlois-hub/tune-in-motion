@@ -25,7 +25,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
+              <Zap className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
               <div>
                 <h1 className="font-display text-xl font-bold tracking-wider">
                   BLEED OUT ZONE <span className="text-primary">PRO</span>
