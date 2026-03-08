@@ -1,0 +1,311 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { cn } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useGuitarEffects, type EffectSettings } from '@/hooks/useGuitarEffects';
+import { useDrumMachine, DRUM_PATTERNS } from '@/hooks/useDrumMachine';
+import { useLoopRecorder } from '@/hooks/useLoopRecorder';
+import { useMasterVolume } from '@/hooks/useMasterVolume';
+import { useBpmSync } from '@/hooks/useBpmSync';
+
+function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
+  label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
+}) {
+  const display = unit === '%' ? Math.round(value * 100) : value.toFixed(2);
+  const rotation = ((value - min) / (max - min)) * 270 - 135;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative w-14 h-14">
+        <motion.div className="absolute inset-0 rounded-full" style={{ rotate: rotation }}>
+          <div className="absolute w-1 h-4 bg-primary rounded-full top-2 left-1/2 -translate-x-1/2" />
+        </motion.div>
+        <svg className="absolute inset-0 w-full h-full -rotate-[135deg]" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeDasharray="132" strokeDashoffset="44" strokeLinecap="round" />
+          <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="132" strokeDashoffset={132 - ((value - min) / (max - min)) * 88} strokeLinecap="round" className="drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+        </svg>
+      </div>
+      <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="w-16" />
+      <div className="text-center">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-xs font-mono text-primary">{display}{unit === '%' ? '%' : unit}</p>
+      </div>
+    </div>
+  );
+}
+
+function formatDuration(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  const ms = Math.floor((s % 1) * 10);
+  return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
+}
+
+const EFFECT_PRESETS = [
+  { name: 'Clean', settings: { distortion: 0, reverb: 0.2, delay: 0, delayTime: 0.3, gain: 0.8 } },
+  { name: 'Crunch', settings: { distortion: 0.3, reverb: 0.15, delay: 0.1, delayTime: 0.25, gain: 0.7 } },
+  { name: 'Lead', settings: { distortion: 0.5, reverb: 0.3, delay: 0.25, delayTime: 0.35, gain: 0.75 } },
+  { name: 'Ambient', settings: { distortion: 0, reverb: 0.7, delay: 0.5, delayTime: 0.5, gain: 0.6 } },
+  { name: 'Wes Borland', settings: { distortion: 0.65, reverb: 0.4, delay: 0.15, delayTime: 0.2, gain: 0.85 } },
+  { name: 'Tom Morello', settings: { distortion: 0.7, reverb: 0.1, delay: 0.2, delayTime: 0.12, gain: 0.9 } },
+  { name: 'Jimi Hendrix', settings: { distortion: 0.45, reverb: 0.35, delay: 0.15, delayTime: 0.4, gain: 0.75 } },
+  { name: 'David Gilmour', settings: { distortion: 0.25, reverb: 0.55, delay: 0.45, delayTime: 0.45, gain: 0.7 } },
+];
+
+export function StudioView() {
+  const [effectsOpen, setEffectsOpen] = useState(true);
+  const [drumsOpen, setDrumsOpen] = useState(true);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [trimmingLoopId, setTrimmingLoopId] = useState<string | null>(null);
+  const { masterVolume, setMasterVolume } = useMasterVolume();
+  const { bpm, setBpm } = useBpmSync();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, setCurrentPattern, setVolume: setDrumsVolume, start: startDrums, stop: stopDrums } = useDrumMachine();
+  const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
+
+  const effects: { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string }[] = [
+    { key: 'distortion', label: 'Dist' },
+    { key: 'reverb', label: 'Reverb' },
+    { key: 'delay', label: 'Delay' },
+    { key: 'delayTime', label: 'Time', min: 0.05, max: 1, unit: 's' },
+    { key: 'gain', label: 'Gain' },
+  ];
+
+  const pattern = DRUM_PATTERNS[currentPattern];
+
+  return (
+    <div className="space-y-4">
+      {/* Master Controls */}
+      <div className="bg-card/50 border border-border rounded-2xl p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Volume2 className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm font-medium">Master</span>
+            <Slider value={[masterVolume * 100]} onValueChange={([v]) => setMasterVolume(v / 100)} min={0} max={100} className="w-24" />
+            <span className="text-xs text-muted-foreground w-8">{Math.round(masterVolume * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setBpm(Math.max(30, bpm - 5))}><Minus className="w-3 h-3" /></Button>
+            <div className="text-center w-20">
+              <span className="font-display text-2xl font-bold text-primary">{bpm}</span>
+              <span className="text-xs text-muted-foreground ml-1">BPM</span>
+            </div>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setBpm(Math.min(300, bpm + 5))}><Plus className="w-3 h-3" /></Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Loop Recorder */}
+      <div className="bg-card/50 border border-border rounded-2xl p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-lg font-bold">🎙️ Loop Recorder</h2>
+          <span className="text-xs text-muted-foreground">{loops.length} loop{loops.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="flex items-center gap-6">
+          <motion.button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={cn(
+              "w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shrink-0",
+              isRecording ? "bg-destructive text-destructive-foreground shadow-[0_0_30px_hsl(var(--destructive)/0.5)]" : "bg-secondary hover:bg-secondary/80 text-muted-foreground"
+            )}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            animate={isRecording ? { scale: [1, 1.05, 1] } : {}}
+            transition={{ duration: 0.5, repeat: isRecording ? Infinity : 0 }}
+          >
+            {isRecording ? <Square className="w-6 h-6" /> : <Mic className="w-8 h-8" />}
+          </motion.button>
+          <div className="flex-1">
+            {isRecording ? (
+              <div className="flex items-center gap-3">
+                <motion.div className="w-3 h-3 rounded-full bg-destructive" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />
+                <span className="font-display text-2xl font-bold text-destructive">{formatDuration(recordingDuration)}</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Ready to record</span>
+            )}
+          </div>
+        </div>
+
+        {loops.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {loops.map((loop, index) => (
+              <div key={loop.id}>
+                <motion.div
+                  className={cn("flex items-center gap-3 p-3 rounded-xl transition-all", playingLoopId === loop.id ? "bg-primary/10 border border-primary/30" : "bg-secondary/50")}
+                  initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                >
+                  <span className="text-xs text-muted-foreground w-6">#{index + 1}</span>
+                  <div className="flex-1 h-8 rounded bg-gradient-to-r from-primary/20 via-primary/40 to-primary/20 flex items-center justify-center overflow-hidden relative">
+                    {(loop.trimStart > 0 || loop.trimEnd < loop.duration) && (
+                      <>
+                        <div className="absolute left-0 top-0 bottom-0 bg-background/70" style={{ width: `${(loop.trimStart / loop.duration) * 100}%` }} />
+                        <div className="absolute right-0 top-0 bottom-0 bg-background/70" style={{ width: `${((loop.duration - loop.trimEnd) / loop.duration) * 100}%` }} />
+                      </>
+                    )}
+                    <div className="flex items-end gap-0.5 h-6 relative z-10">
+                      {Array.from({ length: 20 }).map((_, i) => (
+                        <motion.div key={i} className="w-0.5 bg-primary rounded-full" style={{ height: `${20 + Math.random() * 80}%` }}
+                          animate={playingLoopId === loop.id ? { height: ['20%', `${20 + Math.random() * 80}%`, '20%'] } : {}}
+                          transition={{ duration: 0.3, repeat: Infinity, delay: i * 0.02 }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs text-muted-foreground">{formatDuration(loop.trimEnd - loop.trimStart)}</span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => playingLoopId === loop.id ? stopLoop(loop.id) : playLoop(loop.id, false)}>
+                      {playingLoopId === loop.id ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => playLoop(loop.id, true)}><Repeat className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className={cn("h-8 w-8", trimmingLoopId === loop.id && "text-primary")} onClick={() => setTrimmingLoopId(trimmingLoopId === loop.id ? null : loop.id)}>
+                      <Scissors className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => exportLoop(loop.id)}><Download className="w-3 h-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteLoop(loop.id)}><Trash2 className="w-3 h-3" /></Button>
+                  </div>
+                </motion.div>
+                {trimmingLoopId === loop.id && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-2 p-3 bg-secondary/30 rounded-lg border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium flex items-center gap-1"><Scissors className="w-3 h-3" />Trim</span>
+                      <span className="text-xs text-muted-foreground">{formatDuration(loop.trimStart)} - {formatDuration(loop.trimEnd)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground mb-1 block">Start</label>
+                        <Slider value={[loop.trimStart]} onValueChange={([v]) => updateLoopTrim(loop.id, Math.min(v, loop.trimEnd - 0.1), loop.trimEnd)} min={0} max={loop.duration} step={0.1} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground mb-1 block">End</label>
+                        <Slider value={[loop.trimEnd]} onValueChange={([v]) => updateLoopTrim(loop.id, loop.trimStart, Math.max(v, loop.trimStart + 0.1))} min={0} max={loop.duration} step={0.1} />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Effects Panel */}
+      <Collapsible open={effectsOpen} onOpenChange={setEffectsOpen}>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className={cn("w-3 h-3 rounded-full", effectsActive ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
+                <h2 className="font-display text-lg font-bold">🎸 Guitar Effects</h2>
+              </div>
+              {effectsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0 space-y-4">
+              {effectsError ? (
+                <div className="text-center py-4">
+                  <p className="text-destructive text-sm mb-2">{effectsError}</p>
+                  <Button size="sm" onClick={startEffects}>Try Again</Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap justify-center gap-4">
+                    {effects.map((e) => (
+                      <EffectKnob key={e.key} label={e.label} value={settings[e.key]} onChange={(v) => updateSetting(e.key, v)} min={e.min} max={e.max} unit={e.unit} />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button variant="ghost" size="sm" onClick={resetSettings}><RotateCcw className="w-4 h-4 mr-1" />Reset</Button>
+                    <motion.button
+                      onClick={effectsActive ? stopEffects : startEffects}
+                      className={cn("w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
+                        effectsActive ? "bg-tuner-perfect text-primary-foreground shadow-[0_0_30px_hsl(var(--tuner-perfect)/0.5)]" : "bg-secondary hover:bg-secondary/80 text-muted-foreground"
+                      )}
+                      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                    >
+                      <Power className="w-7 h-7" />
+                    </motion.button>
+                    <Button variant="ghost" size="sm" onClick={() => setPresetsOpen(!presetsOpen)}>
+                      Presets {presetsOpen ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+                    </Button>
+                  </div>
+                  {presetsOpen && (
+                    <motion.div className="grid grid-cols-4 gap-2" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                      {EFFECT_PRESETS.map((p) => (
+                        <button key={p.name} onClick={() => { Object.entries(p.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v)); }}
+                          className="bg-secondary/50 hover:bg-secondary rounded-lg text-center py-2 text-xs transition-colors">{p.name}</button>
+                      ))}
+                    </motion.div>
+                  )}
+                </>
+              )}
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
+      {/* Drums Panel */}
+      <Collapsible open={drumsOpen} onOpenChange={setDrumsOpen}>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className={cn("w-3 h-3 rounded-full", drumsPlaying ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
+                <h2 className="font-display text-lg font-bold">🥁 Drum Machine</h2>
+                <span className="text-xs text-muted-foreground">{pattern.name} • {bpm} BPM</span>
+              </div>
+              {drumsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0 space-y-4">
+              <div className="space-y-2">
+                {['Kick', 'Snare', 'Hi-Hat'].map((drum, di) => (
+                  <div key={drum} className="flex items-center gap-2">
+                    <span className="w-12 text-[10px] text-muted-foreground">{drum}</span>
+                    <div className="flex gap-0.5 flex-1">
+                      {pattern.pattern[di].map((active, si) => (
+                        <motion.div key={si}
+                          className={cn("flex-1 h-6 rounded transition-all duration-75",
+                            active
+                              ? currentStep === si && drumsPlaying ? "bg-tuner-perfect shadow-[0_0_10px_hsl(var(--tuner-perfect)/0.6)]" : "bg-primary/60"
+                              : currentStep === si && drumsPlaying ? "bg-secondary ring-1 ring-primary" : "bg-secondary/50"
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-muted-foreground" />
+                  <Slider value={[drumsVolume * 100]} onValueChange={([v]) => setDrumsVolume(v / 100)} min={0} max={100} className="w-20" />
+                </div>
+                <motion.button onClick={drumsPlaying ? stopDrums : startDrums}
+                  className={cn("w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
+                    drumsPlaying ? "bg-tuner-perfect text-primary-foreground shadow-[0_0_30px_hsl(var(--tuner-perfect)/0.5)]" : "bg-primary text-primary-foreground hover:shadow-[0_0_15px_hsl(var(--primary)/0.3)]"
+                  )}
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                >
+                  {drumsPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5" />}
+                </motion.button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {Object.entries(DRUM_PATTERNS).map(([key, pat]) => (
+                  <button key={key} onClick={() => { setCurrentPattern(key); if (drumsPlaying) { stopDrums(); setTimeout(startDrums, 100); } }}
+                    className={cn("p-2 rounded-lg text-xs font-medium transition-all",
+                      currentPattern === key ? "bg-primary/20 text-primary border border-primary/30" : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                    )}>{pat.name}</button>
+                ))}
+              </div>
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+    </div>
+  );
+}
