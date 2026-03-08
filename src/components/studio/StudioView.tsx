@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { useDrumMachine, DRUM_PATTERNS } from '@/hooks/useDrumMachine';
 import { useLoopRecorder } from '@/hooks/useLoopRecorder';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
+import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
@@ -43,37 +44,114 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-const EFFECT_PRESETS = [
-  { name: 'Clean', settings: { distortion: 0, reverb: 0.2, delay: 0, delayTime: 0.3, gain: 0.8 } },
-  { name: 'Crunch', settings: { distortion: 0.3, reverb: 0.15, delay: 0.1, delayTime: 0.25, gain: 0.7 } },
-  { name: 'Lead', settings: { distortion: 0.5, reverb: 0.3, delay: 0.25, delayTime: 0.35, gain: 0.75 } },
-  { name: 'Ambient', settings: { distortion: 0, reverb: 0.7, delay: 0.5, delayTime: 0.5, gain: 0.6 } },
-  { name: 'Wes Borland', settings: { distortion: 0.65, reverb: 0.4, delay: 0.15, delayTime: 0.2, gain: 0.85 } },
-  { name: 'Tom Morello', settings: { distortion: 0.7, reverb: 0.1, delay: 0.2, delayTime: 0.12, gain: 0.9 } },
-  { name: 'Jimi Hendrix', settings: { distortion: 0.45, reverb: 0.35, delay: 0.15, delayTime: 0.4, gain: 0.75 } },
-  { name: 'David Gilmour', settings: { distortion: 0.25, reverb: 0.55, delay: 0.45, delayTime: 0.45, gain: 0.7 } },
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch';
+
+const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
+  { id: 'core', label: 'Core', icon: '🎸' },
+  { id: 'dynamics', label: 'Dynamics', icon: '📊' },
+  { id: 'eq', label: 'EQ', icon: '🎚️' },
+  { id: 'modulation', label: 'Modulation', icon: '🌊' },
+  { id: 'time', label: 'Time', icon: '⏱️' },
+  { id: 'pitch', label: 'Pitch', icon: '🎵' },
 ];
+
+const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
+  core: [
+    { key: 'distortion', label: 'Distortion' },
+    { key: 'gain', label: 'Gain' },
+  ],
+  dynamics: [
+    { key: 'compressor', label: 'Compress' },
+    { key: 'noiseGate', label: 'Gate' },
+  ],
+  eq: [
+    { key: 'eqBass', label: 'Bass' },
+    { key: 'eqMid', label: 'Mid' },
+    { key: 'eqTreble', label: 'Treble' },
+  ],
+  modulation: [
+    { key: 'chorus', label: 'Chorus' },
+    { key: 'chorusRate', label: 'Ch Rate', min: 0.1, max: 5, unit: 'Hz', step: 0.1 },
+    { key: 'flanger', label: 'Flanger' },
+    { key: 'flangerRate', label: 'Fl Rate', min: 0.1, max: 5, unit: 'Hz', step: 0.1 },
+    { key: 'phaser', label: 'Phaser' },
+    { key: 'phaserRate', label: 'Ph Rate', min: 0.1, max: 5, unit: 'Hz', step: 0.1 },
+    { key: 'wah', label: 'Wah' },
+    { key: 'wahFreq', label: 'Wah Freq' },
+    { key: 'tremolo', label: 'Tremolo' },
+    { key: 'tremoloRate', label: 'Trem Rate', min: 1, max: 15, unit: 'Hz', step: 0.5 },
+  ],
+  time: [
+    { key: 'delay', label: 'Delay' },
+    { key: 'delayTime', label: 'Time', min: 0.05, max: 1, unit: 's' },
+    { key: 'reverb', label: 'Reverb' },
+  ],
+  pitch: [
+    { key: 'octaver', label: 'Octaver' },
+    { key: 'octaverMix', label: 'Oct Mix' },
+  ],
+};
+
+function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
+  return (
+    <motion.button
+      onClick={onApply}
+      className="text-left p-3 rounded-xl bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 transition-all group"
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{preset.name}</p>
+          <p className="text-[10px] text-muted-foreground">{preset.artist} • {preset.genre}</p>
+        </div>
+        <Music className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5 group-hover:text-primary transition-colors" />
+      </div>
+      <p className="text-[10px] text-muted-foreground/70 mt-1 line-clamp-2">{preset.description}</p>
+      {preset.youtubeRef && (
+        <p className="text-[10px] text-primary/60 mt-1 flex items-center gap-1">
+          <Disc3 className="w-2.5 h-2.5" /> {preset.youtubeRef}
+        </p>
+      )}
+    </motion.button>
+  );
+}
 
 export function StudioView() {
   const [effectsOpen, setEffectsOpen] = useState(true);
   const [drumsOpen, setDrumsOpen] = useState(true);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [trimmingLoopId, setTrimmingLoopId] = useState<string | null>(null);
+  const [activeEffectCategory, setActiveEffectCategory] = useState<EffectCategory>('core');
+  const [presetSearch, setPresetSearch] = useState('');
+  const [presetGenre, setPresetGenre] = useState('All');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, setCurrentPattern, setVolume: setDrumsVolume, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
 
-  const effects: { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string }[] = [
-    { key: 'distortion', label: 'Dist' },
-    { key: 'reverb', label: 'Reverb' },
-    { key: 'delay', label: 'Delay' },
-    { key: 'delayTime', label: 'Time', min: 0.05, max: 1, unit: 's' },
-    { key: 'gain', label: 'Gain' },
-  ];
+  const filteredPresets = useMemo(() => {
+    return TONE_PRESETS.filter(p => {
+      const matchesSearch = presetSearch === '' ||
+        p.name.toLowerCase().includes(presetSearch.toLowerCase()) ||
+        p.artist.toLowerCase().includes(presetSearch.toLowerCase()) ||
+        p.description.toLowerCase().includes(presetSearch.toLowerCase());
+      const matchesGenre = presetGenre === 'All' || p.genre === presetGenre;
+      return matchesSearch && matchesGenre;
+    });
+  }, [presetSearch, presetGenre]);
 
-  const pattern = DRUM_PATTERNS[currentPattern];
+  const genres = useMemo(() => {
+    const g = new Set(TONE_PRESETS.map(p => p.genre));
+    return ['All', ...Array.from(g).sort()];
+  }, []);
+
+  const applyPreset = (preset: TonePreset) => {
+    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+  };
+
+  const currentEffects = EFFECTS_BY_CATEGORY[activeEffectCategory];
 
   return (
     <div className="space-y-4">
@@ -199,6 +277,7 @@ export function StudioView() {
               <div className="flex items-center gap-3">
                 <div className={cn("w-3 h-3 rounded-full", effectsActive ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
                 <h2 className="font-display text-lg font-bold">🎸 Guitar Effects</h2>
+                <span className="text-[10px] text-muted-foreground">{EFFECT_CATEGORIES.length} categories • {Object.values(EFFECTS_BY_CATEGORY).flat().length} params</span>
               </div>
               {effectsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
@@ -212,11 +291,42 @@ export function StudioView() {
                 </div>
               ) : (
                 <>
-                  <div className="flex flex-wrap justify-center gap-4">
-                    {effects.map((e) => (
-                      <EffectKnob key={e.key} label={e.label} value={settings[e.key]} onChange={(v) => updateSetting(e.key, v)} min={e.min} max={e.max} unit={e.unit} />
+                  {/* Effect Category Tabs */}
+                  <div className="flex gap-1 overflow-x-auto pb-1">
+                    {EFFECT_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setActiveEffectCategory(cat.id)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
+                          activeEffectCategory === cat.id
+                            ? "bg-primary/20 text-primary border border-primary/30"
+                            : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                        )}
+                      >
+                        <span>{cat.icon}</span>
+                        <span>{cat.label}</span>
+                      </button>
                     ))}
                   </div>
+
+                  {/* Effect Knobs */}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeEffectCategory}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex flex-wrap justify-center gap-4"
+                    >
+                      {currentEffects.map((e) => (
+                        <EffectKnob key={e.key} label={e.label} value={settings[e.key]} onChange={(v) => updateSetting(e.key, v)} min={e.min} max={e.max} unit={e.unit} step={e.step} />
+                      ))}
+                    </motion.div>
+                  </AnimatePresence>
+
+                  {/* Power & Controls */}
                   <div className="flex items-center justify-center gap-4">
                     <Button variant="ghost" size="sm" onClick={resetSettings}><RotateCcw className="w-4 h-4 mr-1" />Reset</Button>
                     <motion.button
@@ -229,17 +339,59 @@ export function StudioView() {
                       <Power className="w-7 h-7" />
                     </motion.button>
                     <Button variant="ghost" size="sm" onClick={() => setPresetsOpen(!presetsOpen)}>
-                      Presets {presetsOpen ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
+                      <Music className="w-4 h-4 mr-1" /> Tone Library {presetsOpen ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
                     </Button>
                   </div>
-                  {presetsOpen && (
-                    <motion.div className="grid grid-cols-4 gap-2" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                      {EFFECT_PRESETS.map((p) => (
-                        <button key={p.name} onClick={() => { Object.entries(p.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v)); }}
-                          className="bg-secondary/50 hover:bg-secondary rounded-lg text-center py-2 text-xs transition-colors">{p.name}</button>
-                      ))}
-                    </motion.div>
-                  )}
+
+                  {/* Tone Preset Library */}
+                  <AnimatePresence>
+                    {presetsOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <input
+                                type="text"
+                                placeholder="Search artists, tones, songs..."
+                                value={presetSearch}
+                                onChange={(e) => setPresetSearch(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-1 overflow-x-auto pb-1">
+                            {genres.map((g) => (
+                              <button
+                                key={g}
+                                onClick={() => setPresetGenre(g)}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all",
+                                  presetGenre === g ? "bg-primary text-primary-foreground" : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+                                )}
+                              >
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                            {filteredPresets.map((preset) => (
+                              <TonePresetCard key={preset.name} preset={preset} onApply={() => applyPreset(preset)} />
+                            ))}
+                          </div>
+                          {filteredPresets.length === 0 && (
+                            <p className="text-center text-sm text-muted-foreground py-4">No presets match your search</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground/50 text-center">{filteredPresets.length} of {TONE_PRESETS.length} presets</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </>
               )}
             </div>
@@ -255,7 +407,7 @@ export function StudioView() {
               <div className="flex items-center gap-3">
                 <div className={cn("w-3 h-3 rounded-full", drumsPlaying ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
                 <h2 className="font-display text-lg font-bold">🥁 Drum Machine</h2>
-                <span className="text-xs text-muted-foreground">{pattern.name} • {bpm} BPM</span>
+                <span className="text-xs text-muted-foreground">{DRUM_PATTERNS[currentPattern]?.name} • {bpm} BPM</span>
               </div>
               {drumsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
@@ -267,7 +419,7 @@ export function StudioView() {
                   <div key={drum} className="flex items-center gap-2">
                     <span className="w-12 text-[10px] text-muted-foreground">{drum}</span>
                     <div className="flex gap-0.5 flex-1">
-                      {pattern.pattern[di].map((active, si) => (
+                      {DRUM_PATTERNS[currentPattern]?.pattern[di]?.map((active, si) => (
                         <motion.div key={si}
                           className={cn("flex-1 h-6 rounded transition-all duration-75",
                             active
