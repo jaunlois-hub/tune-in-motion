@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Mic, MicOff, Skull } from 'lucide-react';
+import { Mic, MicOff, Skull, Gauge, Disc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
 import { useReferenceTone } from '@/hooks/useReferenceTone';
 import { TUNINGS, type Tuning, findClosestNote } from '@/lib/tunings';
 import { StrobeWheel } from './StrobeWheel';
+import { NeedleTuner } from './NeedleTuner';
 import { NoteDisplay } from './NoteDisplay';
 import { CentsMeter } from './CentsMeter';
 import { TuningSelector } from './TuningSelector';
@@ -12,10 +13,14 @@ import { StringIndicator } from './StringIndicator';
 import { FrequencyDisplay } from './FrequencyDisplay';
 import { A4Calibration } from './A4Calibration';
 import { SignalStrength } from './SignalStrength';
+import { ThemeToggle } from './ThemeToggle';
+
+type TunerMode = 'strobe' | 'needle';
 
 export function GuitarTuner() {
   const [selectedTuning, setSelectedTuning] = useState<Tuning>(TUNINGS[0]);
   const [a4, setA4] = useState(440);
+  const [tunerMode, setTunerMode] = useState<TunerMode>('strobe');
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
   const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
 
@@ -32,11 +37,17 @@ export function GuitarTuner() {
     ? findClosestNote(pitchData.frequency, selectedTuning)
     : null;
 
+  const isActive = isListening && pitchData !== null;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="pt-6 pb-2 px-4">
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center justify-center gap-3 relative">
+          {/* Theme toggle - top right */}
+          <div className="absolute right-0 top-0">
+            <ThemeToggle />
+          </div>
           <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
           <div className="text-center">
             <h1 className="font-display text-xl md:text-2xl font-black tracking-widest text-glow uppercase">
@@ -52,28 +63,56 @@ export function GuitarTuner() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 pb-6 gap-4 md:gap-6">
-        {/* Error message */}
         {error && (
           <div className="bg-destructive/20 border border-destructive/50 text-destructive rounded-lg px-4 py-3 text-sm max-w-md text-center">
             {error}
           </div>
         )}
 
-        {/* A4 Calibration + Tuning selector row */}
+        {/* Controls row */}
         <div className="flex flex-col items-center gap-3 w-full">
-          <TuningSelector
-            selectedTuning={selectedTuning}
-            onTuningChange={(t) => { setSelectedTuning(t); stopTone(); }}
-          />
-          <A4Calibration a4={a4} onChange={setA4} />
+          <div className="flex items-center gap-3 w-full max-w-xs">
+            <TuningSelector
+              selectedTuning={selectedTuning}
+              onTuningChange={(t) => { setSelectedTuning(t); stopTone(); }}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <A4Calibration a4={a4} onChange={setA4} />
+            {/* Mode switcher */}
+            <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border">
+              <button
+                onClick={() => setTunerMode('strobe')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-display transition-all ${
+                  tunerMode === 'strobe'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Disc className="w-3 h-3" />
+                Strobe
+              </button>
+              <button
+                onClick={() => setTunerMode('needle')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-display transition-all ${
+                  tunerMode === 'needle'
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Gauge className="w-3 h-3" />
+                Needle
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* String indicator with tap-to-play */}
+        {/* String indicator */}
         <StringIndicator
           tuning={selectedTuning}
           currentNote={pitchData?.note || null}
           currentOctave={pitchData?.octave || null}
-          isActive={isListening && pitchData !== null}
+          isActive={isActive}
           playingFrequency={playingFrequency}
           onPlayTone={toggleTone}
         />
@@ -82,34 +121,50 @@ export function GuitarTuner() {
         <FrequencyDisplay
           currentFrequency={pitchData?.frequency || null}
           targetNote={targetNote}
-          isActive={isListening && pitchData !== null}
+          isActive={isActive}
         />
 
-        {/* Strobe wheel */}
+        {/* Tuner display */}
         <div className="relative">
-          <StrobeWheel
-            cents={pitchData?.cents || 0}
-            isActive={isListening && pitchData !== null}
-            clarity={pitchData?.clarity || 0}
-          />
-          
-          {/* Note display overlay */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <NoteDisplay
-              note={pitchData?.note || null}
-              octave={pitchData?.octave || null}
-              frequency={pitchData?.frequency || null}
-              isActive={isListening && pitchData !== null}
-              cents={pitchData?.cents || 0}
-            />
-          </div>
+          {tunerMode === 'strobe' ? (
+            <>
+              <StrobeWheel
+                cents={pitchData?.cents || 0}
+                isActive={isActive}
+                clarity={pitchData?.clarity || 0}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <NoteDisplay
+                  note={pitchData?.note || null}
+                  octave={pitchData?.octave || null}
+                  frequency={pitchData?.frequency || null}
+                  isActive={isActive}
+                  cents={pitchData?.cents || 0}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center">
+              <NeedleTuner
+                cents={pitchData?.cents || 0}
+                isActive={isActive}
+                clarity={pitchData?.clarity || 0}
+              />
+              <div className="mt-2">
+                <NoteDisplay
+                  note={pitchData?.note || null}
+                  octave={pitchData?.octave || null}
+                  frequency={pitchData?.frequency || null}
+                  isActive={isActive}
+                  cents={pitchData?.cents || 0}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cents meter */}
-        <CentsMeter
-          cents={pitchData?.cents || 0}
-          isActive={isListening && pitchData !== null}
-        />
+        <CentsMeter cents={pitchData?.cents || 0} isActive={isActive} />
 
         {/* Start/Stop button */}
         <Button
@@ -122,46 +177,30 @@ export function GuitarTuner() {
           }`}
         >
           {isListening ? (
-            <>
-              <MicOff className="w-6 h-6 mr-2" />
-              STOP
-            </>
+            <><MicOff className="w-6 h-6 mr-2" />STOP</>
           ) : (
-            <>
-              <Mic className="w-6 h-6 mr-2" />
-              START
-            </>
+            <><Mic className="w-6 h-6 mr-2" />START</>
           )}
         </Button>
 
         {/* Signal strength + status */}
         <div className="flex items-center justify-center gap-4">
-          <SignalStrength
-            clarity={pitchData?.clarity || 0}
-            isActive={isListening && pitchData !== null}
-          />
+          <SignalStrength clarity={pitchData?.clarity || 0} isActive={isActive} />
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div
               className={`w-2 h-2 rounded-full transition-colors ${
                 isListening
-                  ? pitchData
-                    ? 'bg-tuner-perfect animate-pulse-glow'
-                    : 'bg-primary animate-pulse'
+                  ? pitchData ? 'bg-tuner-perfect animate-pulse-glow' : 'bg-primary animate-pulse'
                   : 'bg-muted-foreground'
               }`}
             />
             <span>
-              {isListening
-                ? pitchData
-                  ? 'Signal detected'
-                  : 'Listening...'
-                : 'Tap START to begin'}
+              {isListening ? (pitchData ? 'Signal detected' : 'Listening...') : 'Tap START to begin'}
             </span>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
         <p>High-precision strobe tuning • ±0.1 cent accuracy</p>
         <p className="font-display tracking-wider">BLEED OUT ZONE™ by JLo</p>
