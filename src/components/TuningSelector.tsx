@@ -16,16 +16,24 @@ interface TuningSelectorProps {
 
 const CATEGORY_LABELS = {
   guitar: '🎸 Guitar',
+  '7string': '🎸 7-String Guitar',
+  '12string': '🎸 12-String Guitar',
   bass: '🎸 Bass Guitar',
   ukulele: '🪕 Ukulele',
+  banjo: '🪕 Banjo',
+  mandolin: '🪕 Mandolin',
+  violin: '🎻 Violin / Strings',
 } as const;
 
+type Category = keyof typeof CATEGORY_LABELS;
+const CATEGORY_ORDER: Category[] = ['guitar', '7string', '12string', 'bass', 'ukulele', 'banjo', 'mandolin', 'violin'];
+
 export function TuningSelector({ selectedTuning, onTuningChange }: TuningSelectorProps) {
-  const grouped = {
-    guitar: TUNINGS.filter((t) => t.category === 'guitar'),
-    bass: TUNINGS.filter((t) => t.category === 'bass'),
-    ukulele: TUNINGS.filter((t) => t.category === 'ukulele'),
-  };
+  const grouped = CATEGORY_ORDER.reduce((acc, cat) => {
+    const items = TUNINGS.filter((t) => t.category === cat);
+    if (items.length > 0) acc[cat] = items;
+    return acc;
+  }, {} as Partial<Record<Category, typeof TUNINGS>>);
 
   return (
     <div className="w-full max-w-xs mx-auto">
