@@ -270,6 +270,177 @@ export const TUNINGS: Tuning[] = [
       { string: 1, note: 'B', octave: 4, frequency: 493.88 },
     ],
   },
+
+  // === 7-STRING GUITAR ===
+  {
+    id: '7string-standard',
+    name: '7-String Standard',
+    category: '7string',
+    description: 'B E A D G B E',
+    notes: [
+      { string: 7, note: 'B', octave: 1, frequency: 61.74 },
+      { string: 6, note: 'E', octave: 2, frequency: 82.41 },
+      { string: 5, note: 'A', octave: 2, frequency: 110.00 },
+      { string: 4, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 3, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 2, note: 'B', octave: 3, frequency: 246.94 },
+      { string: 1, note: 'E', octave: 4, frequency: 329.63 },
+    ],
+  },
+  {
+    id: '7string-drop-a',
+    name: '7-String Drop A',
+    category: '7string',
+    description: 'A E A D G B E',
+    notes: [
+      { string: 7, note: 'A', octave: 1, frequency: 55.00 },
+      { string: 6, note: 'E', octave: 2, frequency: 82.41 },
+      { string: 5, note: 'A', octave: 2, frequency: 110.00 },
+      { string: 4, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 3, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 2, note: 'B', octave: 3, frequency: 246.94 },
+      { string: 1, note: 'E', octave: 4, frequency: 329.63 },
+    ],
+  },
+
+  // === 12-STRING GUITAR ===
+  {
+    id: '12string-standard',
+    name: '12-String Standard',
+    category: '12string',
+    description: 'E A D G B E (doubled)',
+    notes: [
+      { string: 12, note: 'E', octave: 2, frequency: 82.41 },
+      { string: 11, note: 'E', octave: 3, frequency: 164.81 },
+      { string: 10, note: 'A', octave: 2, frequency: 110.00 },
+      { string: 9, note: 'A', octave: 3, frequency: 220.00 },
+      { string: 8, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 7, note: 'D', octave: 4, frequency: 293.66 },
+      { string: 6, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 5, note: 'G', octave: 4, frequency: 392.00 },
+      { string: 4, note: 'B', octave: 3, frequency: 246.94 },
+      { string: 3, note: 'B', octave: 3, frequency: 246.94 },
+      { string: 2, note: 'E', octave: 4, frequency: 329.63 },
+      { string: 1, note: 'E', octave: 4, frequency: 329.63 },
+    ],
+  },
+
+  // === BANJO ===
+  {
+    id: 'banjo-open-g',
+    name: 'Banjo Open G',
+    category: 'banjo',
+    description: 'g D G B D',
+    notes: [
+      { string: 5, note: 'G', octave: 4, frequency: 392.00 },
+      { string: 4, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 3, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 2, note: 'B', octave: 3, frequency: 246.94 },
+      { string: 1, note: 'D', octave: 4, frequency: 293.66 },
+    ],
+  },
+  {
+    id: 'banjo-open-d',
+    name: 'Banjo Open D',
+    category: 'banjo',
+    description: 'f# D F# A D',
+    notes: [
+      { string: 5, note: 'F#', octave: 4, frequency: 369.99 },
+      { string: 4, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 3, note: 'F#', octave: 3, frequency: 185.00 },
+      { string: 2, note: 'A', octave: 3, frequency: 220.00 },
+      { string: 1, note: 'D', octave: 4, frequency: 293.66 },
+    ],
+  },
+  {
+    id: 'banjo-double-c',
+    name: 'Banjo Double C',
+    category: 'banjo',
+    description: 'g C G C D',
+    notes: [
+      { string: 5, note: 'G', octave: 4, frequency: 392.00 },
+      { string: 4, note: 'C', octave: 3, frequency: 130.81 },
+      { string: 3, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 2, note: 'C', octave: 4, frequency: 261.63 },
+      { string: 1, note: 'D', octave: 4, frequency: 293.66 },
+    ],
+  },
+
+  // === MANDOLIN ===
+  {
+    id: 'mandolin-standard',
+    name: 'Mandolin Standard',
+    category: 'mandolin',
+    description: 'G D A E',
+    notes: [
+      { string: 4, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 3, note: 'D', octave: 4, frequency: 293.66 },
+      { string: 2, note: 'A', octave: 4, frequency: 440.00 },
+      { string: 1, note: 'E', octave: 5, frequency: 659.26 },
+    ],
+  },
+  {
+    id: 'mandolin-open-g',
+    name: 'Mandolin Open G',
+    category: 'mandolin',
+    description: 'G D G B',
+    notes: [
+      { string: 4, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 3, note: 'D', octave: 4, frequency: 293.66 },
+      { string: 2, note: 'G', octave: 4, frequency: 392.00 },
+      { string: 1, note: 'B', octave: 4, frequency: 493.88 },
+    ],
+  },
+
+  // === VIOLIN / FIDDLE ===
+  {
+    id: 'violin-standard',
+    name: 'Violin Standard',
+    category: 'violin',
+    description: 'G D A E',
+    notes: [
+      { string: 4, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 3, note: 'D', octave: 4, frequency: 293.66 },
+      { string: 2, note: 'A', octave: 4, frequency: 440.00 },
+      { string: 1, note: 'E', octave: 5, frequency: 659.26 },
+    ],
+  },
+  {
+    id: 'violin-cross',
+    name: 'Violin Cross Tuning',
+    category: 'violin',
+    description: 'A E A E',
+    notes: [
+      { string: 4, note: 'A', octave: 3, frequency: 220.00 },
+      { string: 3, note: 'E', octave: 4, frequency: 329.63 },
+      { string: 2, note: 'A', octave: 4, frequency: 440.00 },
+      { string: 1, note: 'E', octave: 5, frequency: 659.26 },
+    ],
+  },
+  {
+    id: 'viola-standard',
+    name: 'Viola Standard',
+    category: 'violin',
+    description: 'C G D A',
+    notes: [
+      { string: 4, note: 'C', octave: 3, frequency: 130.81 },
+      { string: 3, note: 'G', octave: 3, frequency: 196.00 },
+      { string: 2, note: 'D', octave: 4, frequency: 293.66 },
+      { string: 1, note: 'A', octave: 4, frequency: 440.00 },
+    ],
+  },
+  {
+    id: 'cello-standard',
+    name: 'Cello Standard',
+    category: 'violin',
+    description: 'C G D A',
+    notes: [
+      { string: 4, note: 'C', octave: 2, frequency: 65.41 },
+      { string: 3, note: 'G', octave: 2, frequency: 98.00 },
+      { string: 2, note: 'D', octave: 3, frequency: 146.83 },
+      { string: 1, note: 'A', octave: 3, frequency: 220.00 },
+    ],
+  },
 ];
 
 export function findClosestNote(frequency: number, tuning: Tuning): TuningNote | null {
