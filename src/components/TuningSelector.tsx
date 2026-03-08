@@ -1,8 +1,9 @@
-import { ChevronDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -13,7 +14,19 @@ interface TuningSelectorProps {
   onTuningChange: (tuning: Tuning) => void;
 }
 
+const CATEGORY_LABELS = {
+  guitar: '🎸 Guitar',
+  bass: '🎸 Bass Guitar',
+  ukulele: '🪕 Ukulele',
+} as const;
+
 export function TuningSelector({ selectedTuning, onTuningChange }: TuningSelectorProps) {
+  const grouped = {
+    guitar: TUNINGS.filter((t) => t.category === 'guitar'),
+    bass: TUNINGS.filter((t) => t.category === 'bass'),
+    ukulele: TUNINGS.filter((t) => t.category === 'ukulele'),
+  };
+
   return (
     <div className="w-full max-w-xs mx-auto">
       <label className="block text-xs text-muted-foreground mb-2 text-center uppercase tracking-wider">
@@ -34,18 +47,25 @@ export function TuningSelector({ selectedTuning, onTuningChange }: TuningSelecto
             </div>
           </SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-popover border-border">
-          {TUNINGS.map((tuning) => (
-            <SelectItem
-              key={tuning.id}
-              value={tuning.id}
-              className="cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50"
-            >
-              <div className="flex flex-col items-start py-1">
-                <span className="font-display font-semibold">{tuning.name}</span>
-                <span className="text-xs text-muted-foreground">{tuning.description}</span>
-              </div>
-            </SelectItem>
+        <SelectContent className="bg-popover border-border max-h-72">
+          {(Object.keys(grouped) as Array<keyof typeof grouped>).map((category) => (
+            <SelectGroup key={category}>
+              <SelectLabel className="font-display text-xs tracking-wider text-primary/70 px-2 py-1.5">
+                {CATEGORY_LABELS[category]}
+              </SelectLabel>
+              {grouped[category].map((tuning) => (
+                <SelectItem
+                  key={tuning.id}
+                  value={tuning.id}
+                  className="cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50"
+                >
+                  <div className="flex flex-col items-start py-0.5">
+                    <span className="font-display font-semibold text-sm">{tuning.name}</span>
+                    <span className="text-xs text-muted-foreground">{tuning.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectGroup>
           ))}
         </SelectContent>
       </Select>
