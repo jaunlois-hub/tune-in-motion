@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2 } from 'lucide-react';
+import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { matchPresetsToTitle, type TonePreset } from '@/lib/tonePresets';
@@ -22,9 +22,10 @@ function extractVideoId(url: string): string | null {
 
 interface YouTubeToneMatcherProps {
   onApplyPreset: (settings: EffectSettings) => void;
+  onSavePreset?: (artist: string, song: string) => void;
 }
 
-export function YouTubeToneMatcher({ onApplyPreset }: YouTubeToneMatcherProps) {
+export function YouTubeToneMatcher({ onApplyPreset, onSavePreset }: YouTubeToneMatcherProps) {
   const [url, setUrl] = useState('');
   const [videoId, setVideoId] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string | null>(null);
@@ -152,6 +153,11 @@ export function YouTubeToneMatcher({ onApplyPreset }: YouTubeToneMatcherProps) {
                 <Button size="sm" onClick={() => handleApply(matchedPreset)} className="shrink-0">
                   Apply
                 </Button>
+                {onSavePreset && (
+                  <Button size="sm" variant="outline" onClick={() => onSavePreset(matchedPreset.artist, matchedPreset.youtubeRef || '')} className="shrink-0">
+                    <Save className="w-3.5 h-3.5 mr-1" /> Save
+                  </Button>
+                )}
               </div>
             </div>
 

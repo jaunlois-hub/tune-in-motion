@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube } from 'lucide-react';
+import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { useLoopRecorder } from '@/hooks/useLoopRecorder';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
+import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
@@ -118,6 +119,106 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
   );
 }
 
+function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset; onApply: () => void; onDelete: () => void }) {
+  return (
+    <motion.div
+      className="text-left p-3 rounded-xl bg-accent/20 hover:bg-accent/30 border border-accent/30 hover:border-primary/30 transition-all group relative"
+      whileHover={{ scale: 1.02 }}
+    >
+      <button onClick={onApply} className="w-full text-left">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Star className="w-3 h-3 text-primary shrink-0" />
+              <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">{preset.name}</p>
+            </div>
+            {(preset.artist || preset.song) && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {preset.artist}{preset.artist && preset.song ? ' • ' : ''}{preset.song}
+              </p>
+            )}
+            {preset.genre && <p className="text-[10px] text-muted-foreground/60">{preset.genre}</p>}
+          </div>
+        </div>
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </motion.div>
+  );
+}
+
+function SavePresetDialog({ onSave, onClose, initialArtist, initialSong }: {
+  onSave: (name: string, artist: string, song: string, genre: string) => void;
+  onClose: () => void;
+  initialArtist?: string;
+  initialSong?: string;
+}) {
+  const [name, setName] = useState('');
+  const [artist, setArtist] = useState(initialArtist || '');
+  const [song, setSong] = useState(initialSong || '');
+  const [genre, setGenre] = useState('');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      className="p-4 bg-card border border-border rounded-xl shadow-lg space-y-3"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold flex items-center gap-1.5">
+          <Save className="w-4 h-4 text-primary" /> Save Custom Preset
+        </h3>
+        <button onClick={onClose} className="p-1 rounded hover:bg-secondary"><X className="w-4 h-4" /></button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2">
+          <label className="text-[10px] text-muted-foreground mb-1 block">Preset Name *</label>
+          <input
+            value={name} onChange={e => setName(e.target.value)}
+            placeholder="My Custom Tone"
+            className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground mb-1 block">Band / Artist</label>
+          <input
+            value={artist} onChange={e => setArtist(e.target.value)}
+            placeholder="e.g. Metallica"
+            className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground mb-1 block">Song Name</label>
+          <input
+            value={song} onChange={e => setSong(e.target.value)}
+            placeholder="e.g. Master of Puppets"
+            className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="text-[10px] text-muted-foreground mb-1 block">Genre</label>
+          <input
+            value={genre} onChange={e => setGenre(e.target.value)}
+            placeholder="e.g. Metal, Blues, Rock"
+            className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" disabled={!name.trim()} onClick={() => { onSave(name.trim(), artist.trim(), song.trim(), genre.trim()); onClose(); }}>
+          <Save className="w-3.5 h-3.5 mr-1" /> Save
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+
 export function StudioView() {
   const [toneMatchOpen, setToneMatchOpen] = useState(true);
   const [effectsOpen, setEffectsOpen] = useState(true);
@@ -127,11 +228,15 @@ export function StudioView() {
   const [activeEffectCategory, setActiveEffectCategory] = useState<EffectCategory>('core');
   const [presetSearch, setPresetSearch] = useState('');
   const [presetGenre, setPresetGenre] = useState('All');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveInitialArtist, setSaveInitialArtist] = useState('');
+  const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
+  const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
 
   const filteredPresets = useMemo(() => {
     return TONE_PRESETS.filter(p => {
@@ -144,6 +249,18 @@ export function StudioView() {
     });
   }, [presetSearch, presetGenre]);
 
+  const filteredCustomPresets = useMemo(() => {
+    if (presetSearch === '' && presetGenre === 'All') return customPresets;
+    return customPresets.filter(p => {
+      const matchesSearch = presetSearch === '' ||
+        p.name.toLowerCase().includes(presetSearch.toLowerCase()) ||
+        p.artist.toLowerCase().includes(presetSearch.toLowerCase()) ||
+        p.song.toLowerCase().includes(presetSearch.toLowerCase());
+      const matchesGenre = presetGenre === 'All' || p.genre.toLowerCase().includes(presetGenre.toLowerCase());
+      return matchesSearch && matchesGenre;
+    });
+  }, [customPresets, presetSearch, presetGenre]);
+
   const genres = useMemo(() => {
     const g = new Set(TONE_PRESETS.map(p => p.genre));
     return ['All', ...Array.from(g).sort()];
@@ -151,6 +268,20 @@ export function StudioView() {
 
   const applyPreset = (preset: TonePreset) => {
     Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+  };
+
+  const applyCustomPreset = (preset: CustomPreset) => {
+    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+  };
+
+  const handleSavePreset = (name: string, artist: string, song: string, genre: string) => {
+    savePreset({ name, artist, song, genre, settings: { ...settings } });
+  };
+
+  const openSaveDialog = (artist = '', song = '') => {
+    setSaveInitialArtist(artist);
+    setSaveInitialSong(song);
+    setShowSaveDialog(true);
   };
 
   const currentEffects = EFFECTS_BY_CATEGORY[activeEffectCategory];
@@ -192,9 +323,12 @@ export function StudioView() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="p-4 pt-0">
-              <YouTubeToneMatcher onApplyPreset={(s) => {
-                Object.entries(s).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
-              }} />
+              <YouTubeToneMatcher
+                onApplyPreset={(s) => {
+                  Object.entries(s).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+                }}
+                onSavePreset={(artist, song) => openSaveDialog(artist, song)}
+              />
             </div>
           </CollapsibleContent>
         </div>
@@ -352,8 +486,11 @@ export function StudioView() {
                   </AnimatePresence>
 
                   {/* Power & Controls */}
-                  <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={resetSettings}><RotateCcw className="w-4 h-4 mr-1" />Reset</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openSaveDialog()}>
+                      <Save className="w-4 h-4 mr-1" />Save Preset
+                    </Button>
                     <motion.button
                       onClick={effectsActive ? stopEffects : startEffects}
                       className={cn("w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
@@ -367,6 +504,18 @@ export function StudioView() {
                       <Music className="w-4 h-4 mr-1" /> Tone Library {presetsOpen ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
                     </Button>
                   </div>
+
+                  {/* Save Preset Dialog */}
+                  <AnimatePresence>
+                    {showSaveDialog && (
+                      <SavePresetDialog
+                        onSave={handleSavePreset}
+                        onClose={() => setShowSaveDialog(false)}
+                        initialArtist={saveInitialArtist}
+                        initialSong={saveInitialSong}
+                      />
+                    )}
+                  </AnimatePresence>
 
                   {/* Tone Preset Library */}
                   <AnimatePresence>
@@ -404,15 +553,41 @@ export function StudioView() {
                               </button>
                             ))}
                           </div>
+
+                          {/* Custom Presets Section */}
+                          {filteredCustomPresets.length > 0 && (
+                            <div>
+                              <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+                                <Star className="w-3 h-3" /> My Presets ({filteredCustomPresets.length})
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+                                {filteredCustomPresets.map((preset) => (
+                                  <CustomPresetCard
+                                    key={preset.id}
+                                    preset={preset}
+                                    onApply={() => applyCustomPreset(preset)}
+                                    onDelete={() => deletePreset(preset.id)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Built-in Presets */}
+                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">
+                            Built-in Presets ({filteredPresets.length})
+                          </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
                             {filteredPresets.map((preset) => (
                               <TonePresetCard key={preset.name} preset={preset} onApply={() => applyPreset(preset)} />
                             ))}
                           </div>
-                          {filteredPresets.length === 0 && (
+                          {filteredPresets.length === 0 && filteredCustomPresets.length === 0 && (
                             <p className="text-center text-sm text-muted-foreground py-4">No presets match your search</p>
                           )}
-                          <p className="text-[10px] text-muted-foreground/50 text-center">{filteredPresets.length} of {TONE_PRESETS.length} presets</p>
+                          <p className="text-[10px] text-muted-foreground/50 text-center">
+                            {filteredCustomPresets.length + filteredPresets.length} of {customPresets.length + TONE_PRESETS.length} presets
+                          </p>
                         </div>
                       </motion.div>
                     )}
