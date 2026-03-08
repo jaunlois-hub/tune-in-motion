@@ -226,6 +226,9 @@ export function GuitarTuner() {
             </span>
           </div>
         </div>
+
+        {/* Tuning History */}
+        <TuningHistoryPanel sessions={sessions} onClear={clearHistory} />
       </main>
 
       <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
