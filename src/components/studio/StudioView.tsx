@@ -177,6 +177,29 @@ export function StudioView() {
         </div>
       </div>
 
+      {/* YouTube Tone Matcher */}
+      <Collapsible open={toneMatchOpen} onOpenChange={setToneMatchOpen}>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Youtube className="w-5 h-5 text-destructive" />
+                <h2 className="font-display text-lg font-bold">🎯 Tone Matcher</h2>
+                <span className="text-[10px] text-muted-foreground">Paste a YouTube link → auto-match effects</span>
+              </div>
+              {toneMatchOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <YouTubeToneMatcher onApplyPreset={(s) => {
+                Object.entries(s).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+              }} />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
       {/* Loop Recorder */}
       <div className="bg-card/50 border border-border rounded-2xl p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
