@@ -130,7 +130,7 @@ export function StudioView() {
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
-  const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, setCurrentPattern, setVolume: setDrumsVolume, start: startDrums, stop: stopDrums } = useDrumMachine();
+  const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
 
   const filteredPresets = useMemo(() => {
@@ -439,24 +439,38 @@ export function StudioView() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="p-4 pt-0 space-y-4">
-              <div className="space-y-2">
-                {['Kick', 'Snare', 'Hi-Hat'].map((drum, di) => (
-                  <div key={drum} className="flex items-center gap-2">
-                    <span className="w-12 text-[10px] text-muted-foreground">{drum}</span>
-                    <div className="flex gap-0.5 flex-1">
-                      {DRUM_PATTERNS[currentPattern]?.pattern[di]?.map((active, si) => (
-                        <motion.div key={si}
-                          className={cn("flex-1 h-6 rounded transition-all duration-75",
-                            active
-                              ? currentStep === si && drumsPlaying ? "bg-tuner-perfect shadow-[0_0_10px_hsl(var(--tuner-perfect)/0.6)]" : "bg-primary/60"
-                              : currentStep === si && drumsPlaying ? "bg-secondary ring-1 ring-primary" : "bg-secondary/50"
-                          )}
-                        />
-                      ))}
+              {/* Step Sequencer Grid */}
+              <div className="space-y-1.5 overflow-x-auto">
+                {['Kick', 'Snare', 'HH', 'OH', 'Tom', 'Rim'].map((drum, di) => {
+                  const steps = DRUM_PATTERNS[currentPattern]?.pattern[di];
+                  if (!steps || steps.every(s => s === 0)) return null;
+                  return (
+                    <div key={drum} className="flex items-center gap-1.5">
+                      <span className="w-8 text-[9px] text-muted-foreground font-medium shrink-0">{drum}</span>
+                      <div className="flex gap-px flex-1">
+                        {steps.map((vel, si) => (
+                          <motion.div key={si}
+                            className={cn(
+                              "flex-1 rounded-sm transition-all duration-75",
+                              si % 4 === 0 ? "ml-0.5" : "",
+                              vel > 0
+                                ? currentStep === si && drumsPlaying
+                                  ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect)/0.6)]"
+                                  : vel > 0.8 ? "bg-primary/80" : vel > 0.5 ? "bg-primary/55" : "bg-primary/30"
+                                : currentStep === si && drumsPlaying
+                                  ? "bg-secondary ring-1 ring-primary/40"
+                                  : si % 4 === 0 ? "bg-secondary/60" : "bg-secondary/30"
+                            )}
+                            style={{ height: vel > 0 ? `${Math.max(12, vel * 24)}px` : '12px' }}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* Controls */}
               <div className="flex items-center justify-center gap-6">
                 <div className="flex items-center gap-2">
                   <Volume2 className="w-4 h-4 text-muted-foreground" />
@@ -470,8 +484,14 @@ export function StudioView() {
                 >
                   {drumsPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5" />}
                 </motion.button>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Swing</span>
+                  <Slider value={[swing * 100]} onValueChange={([v]) => setSwing(v / 100)} min={0} max={100} className="w-16" />
+                </div>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+
+              {/* Pattern Selector */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
                 {Object.entries(DRUM_PATTERNS).map(([key, pat]) => (
                   <button key={key} onClick={() => { setCurrentPattern(key); if (drumsPlaying) { stopDrums(); setTimeout(startDrums, 100); } }}
                     className={cn("p-2 rounded-lg text-xs font-medium transition-all",
