@@ -130,7 +130,7 @@ export function StudioView() {
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
-  const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, setCurrentPattern, setVolume: setDrumsVolume, start: startDrums, stop: stopDrums } = useDrumMachine();
+  const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
 
   const filteredPresets = useMemo(() => {
