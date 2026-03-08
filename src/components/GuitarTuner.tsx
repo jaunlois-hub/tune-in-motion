@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Skull, Gauge, Disc } from 'lucide-react';
+import { Mic, MicOff, Gauge, Disc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
 import { useReferenceTone } from '@/hooks/useReferenceTone';
