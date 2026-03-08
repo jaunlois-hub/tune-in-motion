@@ -6,6 +6,55 @@
 
 @layer base {
   :root {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    --primary: 170 80% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 10% 92%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 220 10% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 170 80% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 10% 85%;
+    --input: 220 10% 88%;
+    --ring: 170 80% 40%;
+
+    --radius: 0.75rem;
+
+    /* Custom tuner colors */
+    --tuner-flat: 0 100% 55%;
+    --tuner-sharp: 220 100% 60%;
+    --tuner-perfect: 120 80% 42%;
+    --tuner-glow: 170 80% 40%;
+    --tuner-strobe: 170 80% 50%;
+
+    /* Gradients */
+    --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.3), transparent 70%);
+    --gradient-strobe: linear-gradient(90deg, 
+      transparent 0%, 
+      hsl(var(--tuner-strobe)) 10%, 
+      hsl(var(--tuner-strobe)) 40%, 
+      transparent 50%,
+      transparent 100%
+    );
+  }
+
+  .dark {
     --background: 220 20% 6%;
     --foreground: 180 100% 95%;
 
