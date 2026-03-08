@@ -11,6 +11,7 @@ import { TuningSelector } from './TuningSelector';
 import { StringIndicator } from './StringIndicator';
 import { FrequencyDisplay } from './FrequencyDisplay';
 import { A4Calibration } from './A4Calibration';
+import { SignalStrength } from './SignalStrength';
 
 export function GuitarTuner() {
   const [selectedTuning, setSelectedTuning] = useState<Tuning>(TUNINGS[0]);
