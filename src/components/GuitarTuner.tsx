@@ -206,12 +206,6 @@ export function GuitarTuner() {
 
         {/* Tuning History */}
         <TuningHistoryPanel sessions={sessions} onClear={clearHistory} />
-      </main>
-
-      <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
-        <p>High-precision strobe tuning • ±0.1 cent accuracy</p>
-        <p className="font-display tracking-wider">BLEED OUT ZONE™ by JLo</p>
-      </footer>
     </div>
   );
 }
