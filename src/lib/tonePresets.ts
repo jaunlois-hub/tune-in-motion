@@ -6,6 +6,7 @@ export interface TonePreset {
   genre: string;
   description: string;
   youtubeRef?: string;
+  keywords: string[]; // for fuzzy matching YouTube titles
   settings: EffectSettings;
 }
 
