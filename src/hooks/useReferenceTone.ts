@@ -6,8 +6,23 @@ export function useReferenceTone() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
+  const cleanup = useCallback(() => {
+    if (gainNodeRef.current && audioContextRef.current) {
+      try {
+        gainNodeRef.current.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + 0.05);
+      } catch {}
+    }
+    setTimeout(() => {
+      try { oscillatorRef.current?.stop(); } catch {}
+      oscillatorRef.current = null;
+      try { audioContextRef.current?.close(); } catch {}
+      audioContextRef.current = null;
+      gainNodeRef.current = null;
+    }, 60);
+  }, []);
+
   const play = useCallback((frequency: number) => {
-    stop();
+    cleanup();
 
     const ctx = new AudioContext();
     audioContextRef.current = ctx;
@@ -26,23 +41,12 @@ export function useReferenceTone() {
     oscillatorRef.current = osc;
 
     setPlayingFrequency(frequency);
-  }, []);
+  }, [cleanup]);
 
   const stop = useCallback(() => {
-    if (gainNodeRef.current && audioContextRef.current) {
-      try {
-        gainNodeRef.current.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + 0.05);
-      } catch {}
-    }
-    setTimeout(() => {
-      oscillatorRef.current?.stop();
-      oscillatorRef.current = null;
-      audioContextRef.current?.close();
-      audioContextRef.current = null;
-      gainNodeRef.current = null;
-    }, 60);
+    cleanup();
     setPlayingFrequency(null);
-  }, []);
+  }, [cleanup]);
 
   const toggle = useCallback((frequency: number) => {
     if (playingFrequency === frequency) {
