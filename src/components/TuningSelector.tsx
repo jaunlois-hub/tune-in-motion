@@ -55,8 +55,8 @@ export function TuningSelector({ selectedTuning, onTuningChange }: TuningSelecto
             </div>
           </SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-popover border-border max-h-72">
-          {(Object.keys(grouped) as Array<keyof typeof grouped>).map((category) => (
+        <SelectContent className="bg-popover border-border max-h-80">
+          {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((category) => (
             <SelectGroup key={category}>
               <SelectLabel className="font-display text-xs tracking-wider text-primary/70 px-2 py-1.5">
                 {CATEGORY_LABELS[category]}
