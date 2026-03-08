@@ -144,8 +144,9 @@ export function useGuitarEffects() {
       (n.chorusDry as GainNode).gain.value = 1;
 
       // Flanger
-      n.flangerDelay = ctx.createDelay(0.02);
-      n.flangerDelay.delayTime.value = 0.005;
+      const flangerDelay = ctx.createDelay(0.02);
+      flangerDelay.delayTime.value = 0.005;
+      n.flangerDelay = flangerDelay;
       n.flangerLfo = ctx.createOscillator();
       (n.flangerLfo as OscillatorNode).type = 'sine';
       (n.flangerLfo as OscillatorNode).frequency.value = settings.flangerRate;
