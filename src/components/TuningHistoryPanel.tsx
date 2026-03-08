@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { History, Trash2, ChevronDown, ChevronUp, Target, Clock, Music } from 'lucide-react';
+import { History, Trash2, ChevronDown, ChevronUp, Target, Clock, Music, BarChart3 } from 'lucide-react';
+import { AccuracyChart } from './AccuracyChart';
 import { Button } from '@/components/ui/button';
 import type { TuningSession } from '@/hooks/useTuningHistory';
 
