@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3 } from 'lucide-react';
+import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { useLoopRecorder } from '@/hooks/useLoopRecorder';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
+import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
