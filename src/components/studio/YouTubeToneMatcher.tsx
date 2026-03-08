@@ -25,7 +25,7 @@ interface YouTubeToneMatcherProps {
   onSavePreset?: (artist: string, song: string) => void;
 }
 
-export function YouTubeToneMatcher({ onApplyPreset }: YouTubeToneMatcherProps) {
+export function YouTubeToneMatcher({ onApplyPreset, onSavePreset }: YouTubeToneMatcherProps) {
   const [url, setUrl] = useState('');
   const [videoId, setVideoId] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string | null>(null);
