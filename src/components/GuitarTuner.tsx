@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Skull, Gauge, Disc } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
@@ -14,6 +14,8 @@ import { FrequencyDisplay } from './FrequencyDisplay';
 import { A4Calibration } from './A4Calibration';
 import { SignalStrength } from './SignalStrength';
 import { ThemeToggle } from './ThemeToggle';
+import { TuningHistoryPanel } from './TuningHistoryPanel';
+import { useTuningHistory } from '@/hooks/useTuningHistory';
 
 type TunerMode = 'strobe' | 'needle';
 
@@ -23,11 +25,14 @@ export function GuitarTuner() {
   const [tunerMode, setTunerMode] = useState<TunerMode>('strobe');
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
   const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
+  const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
+  const wasListeningRef = useRef(false);
 
   const handleToggle = () => {
     if (isListening) {
       stopListening();
       stopTone();
+      endSession();
     } else {
       startListening();
     }
@@ -38,6 +43,28 @@ export function GuitarTuner() {
     : null;
 
   const isActive = isListening && pitchData !== null;
+
+  // Log readings while tuning
+  useEffect(() => {
+    if (pitchData && isListening && targetNote) {
+      logReading(
+        pitchData.note,
+        pitchData.octave,
+        pitchData.cents,
+        pitchData.frequency,
+        targetNote.frequency,
+        selectedTuning.name,
+      );
+    }
+  }, [pitchData, isListening, targetNote, selectedTuning.name, logReading]);
+
+  // End session if listening stops externally
+  useEffect(() => {
+    if (wasListeningRef.current && !isListening) {
+      endSession();
+    }
+    wasListeningRef.current = isListening;
+  }, [isListening, endSession]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -199,6 +226,9 @@ export function GuitarTuner() {
             </span>
           </div>
         </div>
+
+        {/* Tuning History */}
+        <TuningHistoryPanel sessions={sessions} onClear={clearHistory} />
       </main>
 
       <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
