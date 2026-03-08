@@ -25,6 +25,8 @@ export function GuitarTuner() {
   const [tunerMode, setTunerMode] = useState<TunerMode>('strobe');
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
   const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
+  const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
+  const wasListeningRef = useRef(false);
 
   const handleToggle = () => {
     if (isListening) {
