@@ -172,6 +172,8 @@ export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProp
           <p>No sessions yet</p>
           <p className="text-[10px] mt-1">Start tuning to track your accuracy</p>
         </div>
+      ) : view === 'chart' ? (
+        <AccuracyChart sessions={sessions} />
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
           {sessions.map((session) => (
