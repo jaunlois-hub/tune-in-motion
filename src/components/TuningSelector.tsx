@@ -61,7 +61,7 @@ export function TuningSelector({ selectedTuning, onTuningChange }: TuningSelecto
               <SelectLabel className="font-display text-xs tracking-wider text-primary/70 px-2 py-1.5">
                 {CATEGORY_LABELS[category]}
               </SelectLabel>
-              {grouped[category].map((tuning) => (
+              {grouped[category]!.map((tuning) => (
                 <SelectItem
                   key={tuning.id}
                   value={tuning.id}
