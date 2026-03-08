@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { History, Trash2, ChevronDown, ChevronUp, Target, Clock, Music } from 'lucide-react';
+import { History, Trash2, ChevronDown, ChevronUp, Target, Clock, Music, BarChart3 } from 'lucide-react';
+import { AccuracyChart } from './AccuracyChart';
 import { Button } from '@/components/ui/button';
 import type { TuningSession } from '@/hooks/useTuningHistory';
 
@@ -115,6 +116,7 @@ function SessionRow({ session }: { session: TuningSession }) {
 
 export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<'list' | 'chart'>('list');
 
   if (!isOpen) {
     return (
@@ -144,6 +146,16 @@ export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProp
         </div>
         <div className="flex items-center gap-1">
           {sessions.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setView(view === 'list' ? 'chart' : 'list')}
+              className="w-7 h-7 text-muted-foreground hover:text-foreground"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {sessions.length > 0 && (
             <Button variant="ghost" size="icon" onClick={onClear} className="w-7 h-7 text-muted-foreground hover:text-destructive">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
@@ -160,6 +172,8 @@ export function TuningHistoryPanel({ sessions, onClear }: TuningHistoryPanelProp
           <p>No sessions yet</p>
           <p className="text-[10px] mt-1">Start tuning to track your accuracy</p>
         </div>
+      ) : view === 'chart' ? (
+        <AccuracyChart sessions={sessions} />
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
           {sessions.map((session) => (
