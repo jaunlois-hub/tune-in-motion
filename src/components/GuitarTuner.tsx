@@ -1,43 +1,56 @@
 import { useState } from 'react';
-import { Mic, MicOff, Music2 } from 'lucide-react';
+import { Mic, MicOff, Skull } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
-import { TUNINGS, type Tuning } from '@/lib/tunings';
+import { useReferenceTone } from '@/hooks/useReferenceTone';
+import { TUNINGS, type Tuning, findClosestNote } from '@/lib/tunings';
 import { StrobeWheel } from './StrobeWheel';
 import { NoteDisplay } from './NoteDisplay';
 import { CentsMeter } from './CentsMeter';
 import { TuningSelector } from './TuningSelector';
 import { StringIndicator } from './StringIndicator';
+import { FrequencyDisplay } from './FrequencyDisplay';
+import { A4Calibration } from './A4Calibration';
 
 export function GuitarTuner() {
   const [selectedTuning, setSelectedTuning] = useState<Tuning>(TUNINGS[0]);
+  const [a4, setA4] = useState(440);
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
+  const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
 
   const handleToggle = () => {
     if (isListening) {
       stopListening();
+      stopTone();
     } else {
       startListening();
     }
   };
 
+  const targetNote = pitchData
+    ? findClosestNote(pitchData.frequency, selectedTuning)
+    : null;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="pt-6 pb-4 px-4">
+      <header className="pt-6 pb-2 px-4">
         <div className="flex items-center justify-center gap-3">
-          <Music2 className="w-8 h-8 text-primary" />
-          <h1 className="font-display text-2xl md:text-3xl font-bold text-glow">
-            STROBE TUNER
-          </h1>
+          <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
+          <div className="text-center">
+            <h1 className="font-display text-xl md:text-2xl font-black tracking-widest text-glow uppercase">
+              Bleed Out Zone
+            </h1>
+            <p className="font-display text-[10px] tracking-[0.3em] text-primary/70 uppercase -mt-0.5">
+              Strobe Tuner by JLo
+            </p>
+          </div>
+          <Skull className="w-8 h-8 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
         </div>
-        <p className="text-center text-muted-foreground text-sm mt-1">
-          Precision Guitar Tuner
-        </p>
       </header>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-8 gap-6 md:gap-8">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-6 gap-4 md:gap-6">
         {/* Error message */}
         {error && (
           <div className="bg-destructive/20 border border-destructive/50 text-destructive rounded-lg px-4 py-3 text-sm max-w-md text-center">
@@ -45,17 +58,29 @@ export function GuitarTuner() {
           </div>
         )}
 
-        {/* Tuning selector */}
-        <TuningSelector
-          selectedTuning={selectedTuning}
-          onTuningChange={setSelectedTuning}
-        />
+        {/* A4 Calibration + Tuning selector row */}
+        <div className="flex flex-col items-center gap-3 w-full">
+          <TuningSelector
+            selectedTuning={selectedTuning}
+            onTuningChange={(t) => { setSelectedTuning(t); stopTone(); }}
+          />
+          <A4Calibration a4={a4} onChange={setA4} />
+        </div>
 
-        {/* String indicator */}
+        {/* String indicator with tap-to-play */}
         <StringIndicator
           tuning={selectedTuning}
           currentNote={pitchData?.note || null}
           currentOctave={pitchData?.octave || null}
+          isActive={isListening && pitchData !== null}
+          playingFrequency={playingFrequency}
+          onPlayTone={toggleTone}
+        />
+
+        {/* Frequency comparison */}
+        <FrequencyDisplay
+          currentFrequency={pitchData?.frequency || null}
+          targetNote={targetNote}
           isActive={isListening && pitchData !== null}
         />
 
@@ -89,7 +114,7 @@ export function GuitarTuner() {
         <Button
           onClick={handleToggle}
           size="lg"
-          className={`mt-4 px-8 py-6 text-lg font-display font-bold rounded-full transition-all duration-300 ${
+          className={`mt-2 px-8 py-6 text-lg font-display font-bold rounded-full transition-all duration-300 ${
             isListening
               ? 'bg-destructive hover:bg-destructive/90 shadow-[0_0_30px_rgba(255,100,100,0.3)]'
               : 'bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(45,212,191,0.3)]'
@@ -130,8 +155,9 @@ export function GuitarTuner() {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-muted-foreground/50">
+      <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
         <p>High-precision strobe tuning • ±0.1 cent accuracy</p>
+        <p className="font-display tracking-wider">BLEED OUT ZONE™ by JLo</p>
       </footer>
     </div>
   );
