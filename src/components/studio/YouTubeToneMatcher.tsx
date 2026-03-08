@@ -153,6 +153,11 @@ export function YouTubeToneMatcher({ onApplyPreset, onSavePreset }: YouTubeToneM
                 <Button size="sm" onClick={() => handleApply(matchedPreset)} className="shrink-0">
                   Apply
                 </Button>
+                {onSavePreset && (
+                  <Button size="sm" variant="outline" onClick={() => onSavePreset(matchedPreset.artist, matchedPreset.youtubeRef || '')} className="shrink-0">
+                    <Save className="w-3.5 h-3.5 mr-1" /> Save
+                  </Button>
+                )}
               </div>
             </div>
 
