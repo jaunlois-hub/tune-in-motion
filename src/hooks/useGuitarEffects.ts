@@ -127,8 +127,9 @@ export function useGuitarEffects() {
       (n.gain as GainNode).gain.value = settings.gain;
 
       // Chorus (delay-based LFO modulation)
-      n.chorusDelay = ctx.createDelay(0.05);
-      n.chorusDelay.delayTime.value = 0.025;
+      const chorusDelay = ctx.createDelay(0.05);
+      chorusDelay.delayTime.value = 0.025;
+      n.chorusDelay = chorusDelay;
       n.chorusLfo = ctx.createOscillator();
       (n.chorusLfo as OscillatorNode).type = 'sine';
       (n.chorusLfo as OscillatorNode).frequency.value = settings.chorusRate;
