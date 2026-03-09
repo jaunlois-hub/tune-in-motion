@@ -429,6 +429,27 @@ export function StudioView() {
         )}
       </div>
 
+      {/* Vocal Recorder with Effects */}
+      <Collapsible>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Mic2 className="w-5 h-5 text-primary" />
+                <h2 className="font-display text-lg font-bold">🎤 Vocal Recorder</h2>
+                <span className="text-[10px] text-muted-foreground">Record with voice effects</span>
+              </div>
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <VocalRecorderView />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
       {/* Effects Panel */}
       <Collapsible open={effectsOpen} onOpenChange={setEffectsOpen}>
         <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
