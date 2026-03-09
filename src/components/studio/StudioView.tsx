@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X } from 'lucide-react';
+import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
 import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
+import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
@@ -427,6 +428,27 @@ export function StudioView() {
           </div>
         )}
       </div>
+
+      {/* Vocal Recorder with Effects */}
+      <Collapsible>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Mic2 className="w-5 h-5 text-primary" />
+                <h2 className="font-display text-lg font-bold">🎤 Vocal Recorder</h2>
+                <span className="text-[10px] text-muted-foreground">Record with voice effects</span>
+              </div>
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <VocalRecorderView />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
 
       {/* Effects Panel */}
       <Collapsible open={effectsOpen} onOpenChange={setEffectsOpen}>
