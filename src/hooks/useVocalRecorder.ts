@@ -23,6 +23,14 @@ export const VOICE_EFFECTS: VoiceEffect[] = [
   { id: 'warmth', name: 'Warm Vocal', icon: '🔥', description: 'Rich, warm tone boost', category: 'studio' },
   { id: 'airy', name: 'Airy Whisper', icon: '💨', description: 'Breathy, ethereal quality', category: 'studio' },
   { id: 'autotune', name: 'Auto-Tune', icon: '🎹', description: 'Pitch-corrected T-Pain style', category: 'popular' },
+  { id: 'synthpad', name: 'Synth Pad', icon: '🎛️', description: 'Lush evolving pad texture', category: 'creative' },
+  { id: 'vocoder', name: 'Vocoder', icon: '🔮', description: 'Classic synth vocoder sound', category: 'creative' },
+  { id: 'bitcrush', name: 'Bitcrusher', icon: '👾', description: 'Lo-fi retro digital grit', category: 'creative' },
+  { id: 'shimmer', name: 'Shimmer', icon: '✨', description: 'Bright octave-up reverb tail', category: 'studio' },
+  { id: 'suboctave', name: 'Sub Octave', icon: '🌊', description: 'Deep sub-bass synth layer', category: 'studio' },
+  { id: 'formant', name: 'Formant Shift', icon: '🗣️', description: 'Vowel-shifting alien voice', category: 'creative' },
+  { id: 'granular', name: 'Granular', icon: '🌌', description: 'Glitchy frozen texture', category: 'creative' },
+  { id: 'talkbox', name: 'Talk Box', icon: '🎸', description: 'Funky wah-synth voice', category: 'popular' },
 ];
 
 export interface VocalRecording {
