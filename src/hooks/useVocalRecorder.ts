@@ -247,6 +247,118 @@ export function useVocalRecorder() {
         current = merger;
         break;
       }
+      case 'synthpad': {
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 0.3; lfo.type = 'sine';
+        const lfoGain = ctx.createGain(); lfoGain.gain.value = 400;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 3;
+        lfo.connect(lfoGain); lfoGain.connect(bp.frequency); lfo.start();
+        const conv = ctx.createConvolver();
+        conv.buffer = createImpulseResponse(ctx, 4, 1.2);
+        const dry = ctx.createGain(); dry.gain.value = 0.3;
+        const wet = ctx.createGain(); wet.gain.value = 0.7;
+        const merger = ctx.createGain();
+        source.connect(bp); bp.connect(dry); dry.connect(merger);
+        bp.connect(conv); conv.connect(wet); wet.connect(merger);
+        nodesRef.current.push(lfo, lfoGain, bp, conv, dry, wet, merger);
+        current = merger;
+        break;
+      }
+      case 'vocoder': {
+        const bands = [200, 400, 800, 1600, 3200];
+        const merger = ctx.createGain(); merger.gain.value = 1.5;
+        bands.forEach(freq => {
+          const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 8;
+          const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = freq * 0.5; osc.start();
+          const oscG = ctx.createGain(); oscG.gain.value = 0.08;
+          const bpOut = ctx.createGain(); bpOut.gain.value = 0.4;
+          source.connect(bp); bp.connect(bpOut); bpOut.connect(merger);
+          osc.connect(oscG); oscG.connect(merger);
+          nodesRef.current.push(bp, osc, oscG, bpOut);
+        });
+        nodesRef.current.push(merger);
+        current = merger;
+        break;
+      }
+      case 'bitcrush': {
+        const dist = ctx.createWaveShaper();
+        const curve = new Float32Array(256);
+        const bits = 4;
+        for (let i = 0; i < 256; i++) { const x = (i / 128) - 1; curve[i] = Math.round(x * Math.pow(2, bits)) / Math.pow(2, bits); }
+        dist.curve = curve; dist.oversample = 'none';
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4000;
+        connect(dist); connect(lp);
+        break;
+      }
+      case 'shimmer': {
+        const hs = ctx.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 3000; hs.gain.value = 12;
+        const conv = ctx.createConvolver();
+        conv.buffer = createImpulseResponse(ctx, 4, 1.5);
+        const dry = ctx.createGain(); dry.gain.value = 0.4;
+        const wet = ctx.createGain(); wet.gain.value = 0.6;
+        const merger = ctx.createGain();
+        source.connect(dry); dry.connect(merger);
+        source.connect(hs); hs.connect(conv); conv.connect(wet); wet.connect(merger);
+        nodesRef.current.push(hs, conv, dry, wet, merger);
+        current = merger;
+        break;
+      }
+      case 'suboctave': {
+        const ls = ctx.createBiquadFilter(); ls.type = 'lowshelf'; ls.frequency.value = 150; ls.gain.value = 18;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 250;
+        const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = 60; osc.start();
+        const oscG = ctx.createGain(); oscG.gain.value = 0.15;
+        const merger = ctx.createGain();
+        source.connect(ls); ls.connect(merger);
+        source.connect(lp); lp.connect(merger);
+        osc.connect(oscG); oscG.connect(merger);
+        nodesRef.current.push(ls, lp, osc, oscG, merger);
+        current = merger;
+        break;
+      }
+      case 'formant': {
+        const f1 = ctx.createBiquadFilter(); f1.type = 'peaking'; f1.frequency.value = 700; f1.gain.value = 15; f1.Q.value = 8;
+        const f2 = ctx.createBiquadFilter(); f2.type = 'peaking'; f2.frequency.value = 1200; f2.gain.value = 12; f2.Q.value = 10;
+        const f3 = ctx.createBiquadFilter(); f3.type = 'peaking'; f3.frequency.value = 2800; f3.gain.value = 8; f3.Q.value = 12;
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 0.8; lfo.start();
+        const lfoG = ctx.createGain(); lfoG.gain.value = 300;
+        lfo.connect(lfoG); lfoG.connect(f1.frequency); lfoG.connect(f2.frequency);
+        connect(f1); connect(f2); connect(f3);
+        nodesRef.current.push(lfo, lfoG);
+        break;
+      }
+      case 'granular': {
+        const delays: AudioNode[] = [];
+        for (let i = 0; i < 4; i++) {
+          const d = ctx.createDelay(0.1); d.delayTime.value = 0.01 + i * 0.015;
+          const g = ctx.createGain(); g.gain.value = 0.3 - i * 0.05;
+          const lfo = ctx.createOscillator(); lfo.frequency.value = 2 + i * 3; lfo.start();
+          const lfoG = ctx.createGain(); lfoG.gain.value = 0.005;
+          lfo.connect(lfoG); lfoG.connect(d.delayTime);
+          delays.push(d, g, lfo, lfoG);
+        }
+        const merger = ctx.createGain();
+        const dryG = ctx.createGain(); dryG.gain.value = 0.4;
+        source.connect(dryG); dryG.connect(merger);
+        for (let i = 0; i < 4; i++) {
+          source.connect(delays[i * 4] as DelayNode);
+          (delays[i * 4] as DelayNode).connect(delays[i * 4 + 1] as GainNode);
+          (delays[i * 4 + 1] as GainNode).connect(merger);
+        }
+        nodesRef.current.push(...delays, merger, dryG);
+        current = merger;
+        break;
+      }
+      case 'talkbox': {
+        const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 2; lfo.start();
+        const lfoG = ctx.createGain(); lfoG.gain.value = 800;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 5;
+        lfo.connect(lfoG); lfoG.connect(bp.frequency);
+        const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2500; pk.gain.value = 10; pk.Q.value = 3;
+        const g = ctx.createGain(); g.gain.value = 1.5;
+        connect(g); connect(bp); connect(pk);
+        nodesRef.current.push(lfo, lfoG);
+        break;
+      }
       default:
         break;
     }
