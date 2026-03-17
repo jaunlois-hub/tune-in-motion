@@ -205,6 +205,9 @@ export function GuitarTuner() {
           </div>
         </div>
 
+        {/* Smart Drummer */}
+        <SmartDrummer compact />
+
         {/* Tuning History */}
         <TuningHistoryPanel sessions={sessions} onClear={clearHistory} />
     </div>
