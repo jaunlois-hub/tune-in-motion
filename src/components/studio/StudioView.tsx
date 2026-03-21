@@ -15,6 +15,7 @@ import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
 import { SmartDrummer } from '@/components/SmartDrummer';
+import { ChordRecognitionView } from '@/components/studio/ChordRecognitionView';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
