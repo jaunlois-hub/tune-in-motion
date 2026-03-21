@@ -15,6 +15,7 @@ import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
 import { SmartDrummer } from '@/components/SmartDrummer';
+import { ChordRecognitionView } from '@/components/studio/ChordRecognitionView';
 
 function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, unit = '%' }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
@@ -223,6 +224,7 @@ function SavePresetDialog({ onSave, onClose, initialArtist, initialSong }: {
 
 export function StudioView() {
   const [toneMatchOpen, setToneMatchOpen] = useState(true);
+  const [chordRecogOpen, setChordRecogOpen] = useState(false);
   const [effectsOpen, setEffectsOpen] = useState(true);
   const [drumsOpen, setDrumsOpen] = useState(true);
   const [presetsOpen, setPresetsOpen] = useState(false);
@@ -336,7 +338,27 @@ export function StudioView() {
         </div>
       </Collapsible>
 
-      {/* Loop Recorder */}
+      {/* Chord Recognition */}
+      <Collapsible open={chordRecogOpen} onOpenChange={setChordRecogOpen}>
+        <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Music className="w-5 h-5 text-primary" />
+                <h2 className="font-display text-lg font-bold">🎸 Chord Recognition</h2>
+                <span className="text-[10px] text-muted-foreground">Detect chords • Practice songs</span>
+              </div>
+              {chordRecogOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-4 pt-0">
+              <ChordRecognitionView />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
+
       <div className="bg-card/50 border border-border rounded-2xl p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-bold">🎙️ Loop Recorder</h2>
