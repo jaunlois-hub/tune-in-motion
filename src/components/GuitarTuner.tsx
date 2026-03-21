@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Gauge, Disc } from 'lucide-react';
+import { Mic, MicOff, Gauge, Disc, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
 import { useReferenceTone } from '@/hooks/useReferenceTone';
 import { TUNINGS, type Tuning, findClosestNote } from '@/lib/tunings';
@@ -16,6 +17,7 @@ import { SignalStrength } from './SignalStrength';
 import { TuningHistoryPanel } from './TuningHistoryPanel';
 import { useTuningHistory } from '@/hooks/useTuningHistory';
 import { SmartDrummer } from './SmartDrummer';
+import { useAudioMonitoring } from '@/hooks/useAudioMonitoring';
 
 type TunerMode = 'strobe' | 'needle';
 
@@ -26,6 +28,7 @@ export function GuitarTuner() {
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
   const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
   const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
+  const { isMonitoring, monitorVolume, startMonitoring, stopMonitoring, updateVolume } = useAudioMonitoring();
   const wasListeningRef = useRef(false);
 
   const handleToggle = () => {
@@ -203,6 +206,28 @@ export function GuitarTuner() {
               {isListening ? (pitchData ? 'Signal detected' : 'Listening...') : 'Tap START to begin'}
             </span>
           </div>
+        </div>
+
+        {/* Audio Monitor */}
+        <div className="flex items-center gap-3 bg-secondary/30 rounded-full px-4 py-2 border border-border">
+          <button
+            onClick={isMonitoring ? stopMonitoring : startMonitoring}
+            className={`flex items-center gap-1.5 text-xs font-display transition-all ${
+              isMonitoring ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Headphones className={`w-4 h-4 ${isMonitoring ? 'text-primary' : ''}`} />
+            {isMonitoring ? 'Monitor ON' : 'Monitor'}
+          </button>
+          {isMonitoring && (
+            <Slider
+              value={[monitorVolume * 100]}
+              onValueChange={([v]) => updateVolume(v / 100)}
+              min={0}
+              max={100}
+              className="w-20"
+            />
+          )}
         </div>
 
         {/* Smart Drummer */}

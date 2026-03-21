@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { useChordDetection, type ChordData } from '@/hooks/useChordDetection';
 import { ChordDiagram } from './ChordDiagram';
+import { ChordProgressionBuilder } from './ChordProgressionBuilder';
 
 // Simple curated chord progressions for popular songs
 interface SongChords {
@@ -52,6 +53,58 @@ const SONG_LIBRARY: SongChords[] = [
     { chord: 'C', beats: 6 }, { chord: 'Am', beats: 6 }, { chord: 'C', beats: 6 }, { chord: 'Am', beats: 6 },
     { chord: 'F', beats: 6 }, { chord: 'G', beats: 6 }, { chord: 'C', beats: 3 }, { chord: 'G', beats: 3 },
   ]},
+  // NEW SONGS
+  { title: 'Sweet Child O\' Mine', artist: 'Guns N\' Roses', bpm: 128, chords: [
+    { chord: 'D', beats: 8 }, { chord: 'C', beats: 8 }, { chord: 'G', beats: 8 }, { chord: 'D', beats: 8 },
+  ]},
+  { title: 'Stairway to Heaven', artist: 'Led Zeppelin', bpm: 72, chords: [
+    { chord: 'Am', beats: 4 }, { chord: 'E', beats: 2 }, { chord: 'C', beats: 2 },
+    { chord: 'D', beats: 4 }, { chord: 'F', beats: 2 }, { chord: 'G', beats: 2 },
+    { chord: 'Am', beats: 4 },
+  ]},
+  { title: 'Hotel California', artist: 'Eagles', bpm: 75, chords: [
+    { chord: 'Bm', beats: 4 }, { chord: 'F#', beats: 4 }, { chord: 'A', beats: 4 }, { chord: 'E', beats: 4 },
+    { chord: 'G', beats: 4 }, { chord: 'D', beats: 4 }, { chord: 'Em', beats: 4 }, { chord: 'F#', beats: 4 },
+  ]},
+  { title: 'Creep', artist: 'Radiohead', bpm: 92, chords: [
+    { chord: 'G', beats: 4 }, { chord: 'B', beats: 4 }, { chord: 'C', beats: 4 }, { chord: 'Cm', beats: 4 },
+  ]},
+  { title: 'No Woman No Cry', artist: 'Bob Marley', bpm: 80, chords: [
+    { chord: 'C', beats: 4 }, { chord: 'G', beats: 4 }, { chord: 'Am', beats: 4 }, { chord: 'F', beats: 4 },
+  ]},
+  { title: 'Hey Joe', artist: 'Jimi Hendrix', bpm: 80, chords: [
+    { chord: 'C', beats: 4 }, { chord: 'G', beats: 4 }, { chord: 'D', beats: 4 }, { chord: 'A', beats: 4 }, { chord: 'E', beats: 8 },
+  ]},
+  { title: 'Redemption Song', artist: 'Bob Marley', bpm: 96, chords: [
+    { chord: 'G', beats: 4 }, { chord: 'Em', beats: 4 }, { chord: 'C', beats: 2 }, { chord: 'G', beats: 2 },
+    { chord: 'Am', beats: 4 }, { chord: 'D', beats: 4 },
+  ]},
+  { title: 'Blackbird', artist: 'The Beatles', bpm: 96, chords: [
+    { chord: 'G', beats: 4 }, { chord: 'Am', beats: 4 }, { chord: 'G', beats: 4 },
+    { chord: 'C', beats: 2 }, { chord: 'Cm', beats: 2 }, { chord: 'G', beats: 4 },
+  ]},
+  { title: 'Every Breath You Take', artist: 'The Police', bpm: 117, chords: [
+    { chord: 'A', beats: 4 }, { chord: 'F#m', beats: 4 }, { chord: 'D', beats: 4 }, { chord: 'E', beats: 4 },
+  ]},
+  { title: 'Smells Like Teen Spirit', artist: 'Nirvana', bpm: 117, chords: [
+    { chord: 'F', beats: 4 }, { chord: 'A#', beats: 4 }, { chord: 'G#', beats: 4 }, { chord: 'C#', beats: 4 },
+  ]},
+  { title: 'Brown Eyed Girl', artist: 'Van Morrison', bpm: 147, chords: [
+    { chord: 'G', beats: 4 }, { chord: 'C', beats: 4 }, { chord: 'G', beats: 4 }, { chord: 'D', beats: 4 },
+  ]},
+  { title: 'Free Fallin\'', artist: 'Tom Petty', bpm: 84, chords: [
+    { chord: 'F', beats: 4 }, { chord: 'A#', beats: 2 }, { chord: 'F', beats: 2 },
+    { chord: 'C', beats: 4 }, { chord: 'A#', beats: 2 }, { chord: 'F', beats: 2 },
+  ]},
+  { title: 'Hurt', artist: 'Johnny Cash', bpm: 68, chords: [
+    { chord: 'Am', beats: 4 }, { chord: 'C', beats: 4 }, { chord: 'D', beats: 4 }, { chord: 'Am', beats: 4 },
+  ]},
+  { title: 'Riptide', artist: 'Vance Joy', bpm: 102, chords: [
+    { chord: 'Am', beats: 4 }, { chord: 'G', beats: 4 }, { chord: 'C', beats: 8 },
+  ]},
+  { title: 'Come As You Are', artist: 'Nirvana', bpm: 120, chords: [
+    { chord: 'Em', beats: 8 }, { chord: 'D', beats: 8 },
+  ]},
 ];
 
 export function ChordRecognitionView() {
@@ -63,6 +116,7 @@ export function ChordRecognitionView() {
   const [chordHistory, setChordHistory] = useState<{ chord: string; time: number }[]>([]);
   const [score, setScore] = useState(0);
   const [showSongList, setShowSongList] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -105,7 +159,6 @@ export function ChordRecognitionView() {
   useEffect(() => {
     if (!isPlaying || !selectedSong || !chordData) return;
     const target = selectedSong.chords[currentChordIdx].chord;
-    // Simple match: strip modifiers for partial credit
     if (chordData.chord === target) {
       setScore(prev => prev + 10);
     } else if (chordData.chord.replace(/m|7|maj7|sus4/g, '') === target.replace(/m|7|maj7|sus4/g, '')) {
@@ -130,6 +183,11 @@ export function ChordRecognitionView() {
     setScore(0);
     setShowSongList(false);
   };
+
+  const handleCustomProgression = useCallback((prog: { title: string; artist: string; bpm: number; chords: { chord: string; beats: number }[] }) => {
+    selectSong(prog);
+    setShowBuilder(false);
+  }, []);
 
   const targetChord = selectedSong ? selectedSong.chords[currentChordIdx]?.chord : null;
   const isMatch = chordData && targetChord && chordData.chord === targetChord;
@@ -318,6 +376,35 @@ export function ChordRecognitionView() {
           </span>
         </div>
       )}
+
+      {/* Chord Progression Builder */}
+      <div className="bg-card/50 border border-border rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowBuilder(!showBuilder)}
+          className="w-full flex items-center justify-between p-3 hover:bg-secondary/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Plus className="w-4 h-4 text-primary" />
+            <span className="text-sm font-bold">Progression Builder</span>
+            <span className="text-[10px] text-muted-foreground">Create custom chord sequences</span>
+          </div>
+          {showBuilder ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        <AnimatePresence>
+          {showBuilder && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="p-3 pt-0">
+                <ChordProgressionBuilder onSelectProgression={handleCustomProgression} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Song Library */}
       <div className="bg-card/50 border border-border rounded-xl overflow-hidden">
