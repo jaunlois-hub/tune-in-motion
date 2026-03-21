@@ -64,7 +64,7 @@ export function ChordRecognitionView() {
   const [score, setScore] = useState(0);
   const [showSongList, setShowSongList] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(true);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track chord history
   useEffect(() => {
