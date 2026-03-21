@@ -224,6 +224,7 @@ function SavePresetDialog({ onSave, onClose, initialArtist, initialSong }: {
 
 export function StudioView() {
   const [toneMatchOpen, setToneMatchOpen] = useState(true);
+  const [chordRecogOpen, setChordRecogOpen] = useState(false);
   const [effectsOpen, setEffectsOpen] = useState(true);
   const [drumsOpen, setDrumsOpen] = useState(true);
   const [presetsOpen, setPresetsOpen] = useState(false);
