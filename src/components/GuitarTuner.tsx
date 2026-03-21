@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Gauge, Disc } from 'lucide-react';
+import { Mic, MicOff, Gauge, Disc, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
 import { useReferenceTone } from '@/hooks/useReferenceTone';
 import { TUNINGS, type Tuning, findClosestNote } from '@/lib/tunings';
@@ -16,6 +17,7 @@ import { SignalStrength } from './SignalStrength';
 import { TuningHistoryPanel } from './TuningHistoryPanel';
 import { useTuningHistory } from '@/hooks/useTuningHistory';
 import { SmartDrummer } from './SmartDrummer';
+import { useAudioMonitoring } from '@/hooks/useAudioMonitoring';
 
 type TunerMode = 'strobe' | 'needle';
 

@@ -3,7 +3,7 @@ import { CHORD_DIAGRAMS } from '@/hooks/useChordDetection';
 
 interface ChordDiagramProps {
   chord: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
 }
 
 const STRING_NAMES = ['E', 'A', 'D', 'G', 'B', 'e'];
@@ -11,7 +11,8 @@ const STRING_NAMES = ['E', 'A', 'D', 'G', 'B', 'e'];
 export function ChordDiagram({ chord, size = 'md' }: ChordDiagramProps) {
   const diagram = CHORD_DIAGRAMS[chord];
 
-  const dims = size === 'sm' ? { w: 90, h: 110, fretH: 20, strGap: 14 } :
+  const dims = size === 'xs' ? { w: 60, h: 75, fretH: 13, strGap: 9 } :
+               size === 'sm' ? { w: 90, h: 110, fretH: 20, strGap: 14 } :
                size === 'lg' ? { w: 160, h: 200, fretH: 36, strGap: 24 } :
                                { w: 120, h: 150, fretH: 26, strGap: 18 };
 
