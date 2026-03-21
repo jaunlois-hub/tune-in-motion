@@ -28,6 +28,7 @@ export function GuitarTuner() {
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
   const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
   const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
+  const { isMonitoring, monitorVolume, startMonitoring, stopMonitoring, updateVolume } = useAudioMonitoring();
   const wasListeningRef = useRef(false);
 
   const handleToggle = () => {
