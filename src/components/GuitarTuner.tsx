@@ -208,6 +208,28 @@ export function GuitarTuner() {
           </div>
         </div>
 
+        {/* Audio Monitor */}
+        <div className="flex items-center gap-3 bg-secondary/30 rounded-full px-4 py-2 border border-border">
+          <button
+            onClick={isMonitoring ? stopMonitoring : startMonitoring}
+            className={`flex items-center gap-1.5 text-xs font-display transition-all ${
+              isMonitoring ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Headphones className={`w-4 h-4 ${isMonitoring ? 'text-primary' : ''}`} />
+            {isMonitoring ? 'Monitor ON' : 'Monitor'}
+          </button>
+          {isMonitoring && (
+            <Slider
+              value={[monitorVolume * 100]}
+              onValueChange={([v]) => updateVolume(v / 100)}
+              min={0}
+              max={100}
+              className="w-20"
+            />
+          )}
+        </div>
+
         {/* Smart Drummer */}
         <SmartDrummer compact />
 
