@@ -395,7 +395,7 @@ export function useGuitarEffects() {
     if (!isActive) return;
     const n = nodesRef.current;
     // Distortion
-    if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
+    if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
     if (n.preGain) (n.preGain as GainNode).gain.value = 1 + settings.distortion * 3;
     if (n.postDistTone) (n.postDistTone as BiquadFilterNode).frequency.value = 5000 - settings.distortion * 2000;
     // Delay
