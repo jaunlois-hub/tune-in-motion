@@ -148,7 +148,7 @@ export function useGuitarEffects() {
       (n.preGain as GainNode).gain.value = 1 + settings.distortion * 3;
 
       n.distortion = ctx.createWaveShaper();
-      (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
+      (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
       (n.distortion as WaveShaperNode).oversample = '4x';
 
       // Post-distortion tone control (tame harsh highs)
