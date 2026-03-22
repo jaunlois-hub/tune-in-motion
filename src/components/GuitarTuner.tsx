@@ -16,7 +16,6 @@ import { A4Calibration } from './A4Calibration';
 import { SignalStrength } from './SignalStrength';
 import { TuningHistoryPanel } from './TuningHistoryPanel';
 import { useTuningHistory } from '@/hooks/useTuningHistory';
-import { SmartDrummer } from './SmartDrummer';
 import { useAudioMonitoring } from '@/hooks/useAudioMonitoring';
 
 type TunerMode = 'strobe' | 'needle';
@@ -229,9 +228,6 @@ export function GuitarTuner() {
             />
           )}
         </div>
-
-        {/* Smart Drummer */}
-        <SmartDrummer compact />
 
         {/* Tuning History */}
         <TuningHistoryPanel sessions={sessions} onClear={clearHistory} />
