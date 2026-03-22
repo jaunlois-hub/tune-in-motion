@@ -6,18 +6,17 @@ interface NoteDisplayProps {
   cents: number;
 }
 
-export function NoteDisplay({ note, octave, frequency, isActive, cents }: NoteDisplayProps) {
+export function NoteDisplay({ note, octave, isActive, cents }: NoteDisplayProps) {
   const isPerfect = Math.abs(cents) < 2;
   const isFlat = cents < -2;
 
   return (
-    <div className="text-center space-y-2">
-      {/* Note name */}
-      <div className="relative">
+    <div className="text-center">
+      <div className="relative inline-block">
         <span
-          className={`font-display text-8xl md:text-9xl font-black tracking-tight transition-all duration-200 ${
+          className={`font-display text-7xl md:text-8xl font-black tracking-tight transition-all duration-300 ${
             !isActive
-              ? 'text-muted-foreground/50'
+              ? 'text-muted-foreground/30'
               : isPerfect
               ? 'text-tuner-perfect text-glow-perfect'
               : isFlat
@@ -25,11 +24,11 @@ export function NoteDisplay({ note, octave, frequency, isActive, cents }: NoteDi
               : 'text-tuner-sharp text-glow-sharp'
           }`}
         >
-          {note || '-'}
+          {note || '—'}
         </span>
         {octave !== null && isActive && (
           <span
-            className={`absolute -top-2 -right-4 font-display text-3xl font-bold ${
+            className={`absolute -top-1 -right-5 font-display text-2xl font-bold opacity-80 ${
               isPerfect
                 ? 'text-tuner-perfect'
                 : isFlat
@@ -40,14 +39,6 @@ export function NoteDisplay({ note, octave, frequency, isActive, cents }: NoteDi
             {octave}
           </span>
         )}
-      </div>
-      
-      {/* Frequency */}
-      <div className="flex items-center justify-center gap-2">
-        <span className="text-2xl font-mono text-muted-foreground">
-          {isActive && frequency ? frequency.toFixed(2) : '---'}
-        </span>
-        <span className="text-sm text-muted-foreground/60">Hz</span>
       </div>
     </div>
   );

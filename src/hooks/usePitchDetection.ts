@@ -14,7 +14,7 @@ const A4_FREQUENCY = 440;
 function frequencyToNote(frequency: number): { note: string; octave: number; cents: number } {
   const semitonesFromA4 = 12 * Math.log2(frequency / A4_FREQUENCY);
   const roundedSemitones = Math.round(semitonesFromA4);
-  const cents = Math.round((semitonesFromA4 - roundedSemitones) * 100);
+  const cents = (semitonesFromA4 - roundedSemitones) * 100;
 
   const noteIndex = ((roundedSemitones % 12) + 9 + 12) % 12;
   const octave = 4 + Math.floor((roundedSemitones + 9) / 12);
@@ -23,75 +23,86 @@ function frequencyToNote(frequency: number): { note: string; octave: number; cen
 }
 
 /**
- * Improved autocorrelation with parabolic interpolation
+ * YIN-inspired pitch detection for much better accuracy and stability.
+ * Uses cumulative mean normalized difference function + parabolic interpolation.
  */
-function autoCorrelate(buffer: Float32Array, sampleRate: number): { frequency: number; clarity: number } {
+function yinDetect(buffer: Float32Array, sampleRate: number): { frequency: number; clarity: number } {
   const SIZE = buffer.length;
+  const halfSize = Math.floor(SIZE / 2);
 
-  // RMS check
+  // RMS check — reject silence
   let rms = 0;
-  for (let i = 0; i < SIZE; i++) {
-    rms += buffer[i] * buffer[i];
-  }
+  for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.02) return { frequency: -1, clarity: 0 }; // Higher threshold
+  if (rms < 0.015) return { frequency: -1, clarity: 0 };
 
-  // Normalised autocorrelation via NSDF-like approach
-  const MAX_SAMPLES = Math.floor(SIZE / 2);
-  const correlations = new Float32Array(MAX_SAMPLES);
-
-  for (let offset = 0; offset < MAX_SAMPLES; offset++) {
-    let correlation = 0;
-    let norm1 = 0;
-    let norm2 = 0;
-    for (let i = 0; i < MAX_SAMPLES; i++) {
-      correlation += buffer[i] * buffer[i + offset];
-      norm1 += buffer[i] * buffer[i];
-      norm2 += buffer[i + offset] * buffer[i + offset];
+  // Step 1: Difference function
+  const diff = new Float32Array(halfSize);
+  for (let tau = 0; tau < halfSize; tau++) {
+    let sum = 0;
+    for (let i = 0; i < halfSize; i++) {
+      const delta = buffer[i] - buffer[i + tau];
+      sum += delta * delta;
     }
-    const normFactor = Math.sqrt(norm1 * norm2);
-    correlations[offset] = normFactor > 0 ? correlation / normFactor : 0;
+    diff[tau] = sum;
   }
 
-  // Find the first peak after the initial drop
-  // Skip the zero-lag peak by waiting for correlation to drop below threshold then rise
-  let foundDip = false;
-  let bestOffset = -1;
-  let bestCorrelation = 0;
+  // Step 2: Cumulative mean normalized difference function (CMNDF)
+  const cmndf = new Float32Array(halfSize);
+  cmndf[0] = 1;
+  let runningSum = 0;
+  for (let tau = 1; tau < halfSize; tau++) {
+    runningSum += diff[tau];
+    cmndf[tau] = diff[tau] * tau / runningSum;
+  }
 
-  // Min period: ~2000 Hz max detectable
-  const minOffset = Math.floor(sampleRate / 2000);
-  // Max period: ~50 Hz min detectable
-  const maxOffset = Math.min(MAX_SAMPLES - 1, Math.floor(sampleRate / 50));
+  // Step 3: Absolute threshold — find first tau where cmndf dips below threshold
+  const threshold = 0.15; // Lower = stricter
+  const minPeriod = Math.floor(sampleRate / 1500); // max ~1500 Hz
+  const maxPeriod = Math.min(halfSize - 1, Math.floor(sampleRate / 50)); // min ~50 Hz
 
-  for (let offset = minOffset; offset < maxOffset; offset++) {
-    if (correlations[offset] < 0.3) {
-      foundDip = true;
-    }
-    if (foundDip && correlations[offset] > 0.5 && correlations[offset] > bestCorrelation) {
-      bestCorrelation = correlations[offset];
-      bestOffset = offset;
-    }
-    // Once we found a strong peak and start declining, stop
-    if (foundDip && bestOffset > 0 && correlations[offset] < bestCorrelation * 0.8) {
+  let bestTau = -1;
+  for (let tau = minPeriod; tau < maxPeriod; tau++) {
+    if (cmndf[tau] < threshold) {
+      // Walk to the local minimum
+      while (tau + 1 < maxPeriod && cmndf[tau + 1] < cmndf[tau]) tau++;
+      bestTau = tau;
       break;
     }
   }
 
-  if (bestOffset < 1 || bestCorrelation < 0.5) return { frequency: -1, clarity: 0 };
+  // Fallback: find global minimum if no dip below threshold
+  if (bestTau < 0) {
+    let minVal = Infinity;
+    for (let tau = minPeriod; tau < maxPeriod; tau++) {
+      if (cmndf[tau] < minVal) {
+        minVal = cmndf[tau];
+        bestTau = tau;
+      }
+    }
+    if (minVal > 0.5) return { frequency: -1, clarity: 0 };
+  }
 
-  // Parabolic interpolation for sub-sample accuracy
-  const prev = correlations[bestOffset - 1];
-  const curr = correlations[bestOffset];
-  const next = bestOffset + 1 < MAX_SAMPLES ? correlations[bestOffset + 1] : curr;
-  const shift = (next - prev) / (2 * (2 * curr - prev - next));
-  const refinedOffset = bestOffset + (isFinite(shift) ? shift : 0);
+  // Step 4: Parabolic interpolation for sub-sample accuracy
+  let refinedTau = bestTau;
+  if (bestTau > 0 && bestTau < halfSize - 1) {
+    const s0 = cmndf[bestTau - 1];
+    const s1 = cmndf[bestTau];
+    const s2 = cmndf[bestTau + 1];
+    const shift = (s0 - s2) / (2 * (s0 - 2 * s1 + s2));
+    if (isFinite(shift) && Math.abs(shift) < 1) {
+      refinedTau = bestTau + shift;
+    }
+  }
 
-  const frequency = sampleRate / refinedOffset;
-  return { frequency, clarity: bestCorrelation };
+  const clarity = 1 - cmndf[bestTau];
+  const frequency = sampleRate / refinedTau;
+
+  return { frequency, clarity: Math.max(0, Math.min(1, clarity)) };
 }
 
-const HISTORY_SIZE = 5;
+const HISTORY_SIZE = 8;
+const EMA_ALPHA = 0.35; // Exponential moving average smoothing
 
 export function usePitchDetection() {
   const [isListening, setIsListening] = useState(false);
@@ -103,8 +114,10 @@ export function usePitchDetection() {
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const historyRef = useRef<number[]>([]);
+  const emaRef = useRef<number | null>(null);
   const lastNoteRef = useRef<string | null>(null);
   const noteHoldCountRef = useRef(0);
+  const silenceCountRef = useRef(0);
 
   const analyze = useCallback(() => {
     if (!analyserRef.current || !audioContextRef.current) return;
@@ -113,34 +126,43 @@ export function usePitchDetection() {
     const buffer = new Float32Array(bufferLength);
     analyserRef.current.getFloatTimeDomainData(buffer);
 
-    const { frequency, clarity } = autoCorrelate(buffer, audioContextRef.current.sampleRate);
+    const { frequency, clarity } = yinDetect(buffer, audioContextRef.current.sampleRate);
 
-    if (frequency > 50 && frequency < 1500 && clarity > 0.5) {
-      // Median filter: keep a rolling window and use median to reject outliers
+    if (frequency > 50 && frequency < 1500 && clarity > 0.85) {
+      silenceCountRef.current = 0;
+
+      // Push into history for median filtering
       historyRef.current.push(frequency);
       if (historyRef.current.length > HISTORY_SIZE) {
         historyRef.current.shift();
       }
 
-      // Use median of recent readings
+      // Median filter to reject outliers
       const sorted = [...historyRef.current].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
 
-      // Only accept if current reading is within 5% of median (reject wild jumps)
-      if (historyRef.current.length >= 3 && Math.abs(frequency - median) / median > 0.05) {
+      // Reject if current reading deviates >3% from median (wild jumps)
+      if (historyRef.current.length >= 3 && Math.abs(frequency - median) / median > 0.03) {
         animationFrameRef.current = requestAnimationFrame(analyze);
         return;
       }
 
-      const smoothed = median;
+      // Exponential moving average for super smooth Hz display
+      if (emaRef.current === null || Math.abs(median - emaRef.current) / emaRef.current > 0.05) {
+        // Big jump — reset EMA
+        emaRef.current = median;
+      } else {
+        emaRef.current = EMA_ALPHA * median + (1 - EMA_ALPHA) * emaRef.current;
+      }
+
+      const smoothed = emaRef.current;
       const { note, octave, cents } = frequencyToNote(smoothed);
 
-      // Hysteresis: require consistent note detection before switching
+      // Hysteresis: require 2 consistent reads before switching displayed note
       const noteKey = `${note}${octave}`;
       if (noteKey !== lastNoteRef.current) {
         noteHoldCountRef.current++;
-        if (noteHoldCountRef.current < 3) {
-          // Don't switch yet — keep old display
+        if (noteHoldCountRef.current < 2) {
           animationFrameRef.current = requestAnimationFrame(analyze);
           return;
         }
@@ -154,15 +176,15 @@ export function usePitchDetection() {
         frequency: smoothed,
         note,
         octave,
-        cents,
+        cents: Math.round(cents * 10) / 10,
         clarity: Math.min(1, clarity),
       });
     } else {
-      // Only clear after several consecutive misses
-      noteHoldCountRef.current++;
-      if (noteHoldCountRef.current > 10) {
+      silenceCountRef.current++;
+      if (silenceCountRef.current > 15) {
         setPitchData(null);
         historyRef.current = [];
+        emaRef.current = null;
         lastNoteRef.current = null;
         noteHoldCountRef.current = 0;
       }
@@ -175,8 +197,10 @@ export function usePitchDetection() {
     try {
       setError(null);
       historyRef.current = [];
+      emaRef.current = null;
       lastNoteRef.current = null;
       noteHoldCountRef.current = 0;
+      silenceCountRef.current = 0;
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -192,8 +216,8 @@ export function usePitchDetection() {
       audioContextRef.current = audioContext;
 
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 8192; // Larger FFT for better low-freq resolution
-      analyser.smoothingTimeConstant = 0.85;
+      analyser.fftSize = 8192;
+      analyser.smoothingTimeConstant = 0;
       analyserRef.current = analyser;
 
       const source = audioContext.createMediaStreamSource(stream);
@@ -225,8 +249,10 @@ export function usePitchDetection() {
 
     analyserRef.current = null;
     historyRef.current = [];
+    emaRef.current = null;
     lastNoteRef.current = null;
     noteHoldCountRef.current = 0;
+    silenceCountRef.current = 0;
     setIsListening(false);
     setPitchData(null);
   }, []);
