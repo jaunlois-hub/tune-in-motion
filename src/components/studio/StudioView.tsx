@@ -495,6 +495,20 @@ export function StudioView() {
                 </div>
               ) : (
                 <>
+                  {/* Quick Presets */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    {QUICK_PRESETS.map((qp) => (
+                      <button
+                        key={qp.name}
+                        onClick={() => Object.entries(qp.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v))}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-accent/20 text-accent-foreground hover:bg-accent/40 border border-accent/20 hover:border-primary/30 transition-all"
+                      >
+                        <span>{qp.emoji}</span>
+                        <span>{qp.name}</span>
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Effect Category Tabs */}
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {EFFECT_CATEGORIES.map((cat) => (
