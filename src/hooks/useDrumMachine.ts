@@ -410,8 +410,16 @@ export function useDrumMachine() {
   const swingRef = useRef(swing);
   const effectiveVolume = localVolume * masterVolume;
 
-  // Keep swing ref in sync
+  // Keep refs in sync so scheduler always reads latest values
+  const bpmRef = useRef(bpm);
+  const patternRef = useRef(currentPattern);
+  const volumeRef = useRef(effectiveVolume);
+  const isPlayingRef = useRef(false);
+
   useEffect(() => { swingRef.current = swing; }, [swing]);
+  useEffect(() => { bpmRef.current = bpm; }, [bpm]);
+  useEffect(() => { patternRef.current = currentPattern; }, [currentPattern]);
+  useEffect(() => { volumeRef.current = effectiveVolume; }, [effectiveVolume]);
 
   const getDestination = useCallback(() => {
     const ctx = audioContextRef.current;
@@ -430,13 +438,13 @@ export function useDrumMachine() {
   }, []);
 
   const scheduler = useCallback(() => {
-    if (!audioContextRef.current) return;
+    if (!audioContextRef.current || !isPlayingRef.current) return;
     const ctx = audioContextRef.current;
     const dest = getDestination();
     if (!dest) return;
-    const pattern = DRUM_PATTERNS[currentPattern];
+    const pattern = DRUM_PATTERNS[patternRef.current];
     const stepCount = pattern.steps;
-    const sixteenthDuration = 60.0 / bpm / 4;
+    const sixteenthDuration = 60.0 / bpmRef.current / 4;
 
     while (nextNoteTimeRef.current < ctx.currentTime + 0.1) {
       const step = currentStepRef.current % stepCount;
@@ -452,7 +460,7 @@ export function useDrumMachine() {
       for (let i = 0; i < pattern.pattern.length; i++) {
         const vel = pattern.pattern[i][step];
         if (vel > 0) {
-          INSTRUMENTS[i](ctx, dest, noteTime, vel * effectiveVolume);
+          INSTRUMENTS[i](ctx, dest, noteTime, vel * volumeRef.current);
         }
       }
 
@@ -461,18 +469,20 @@ export function useDrumMachine() {
       setCurrentStep(currentStepRef.current);
     }
     timerIdRef.current = window.setTimeout(scheduler, 20);
-  }, [currentPattern, bpm, effectiveVolume, getDestination]);
+  }, [getDestination]);
 
   const start = useCallback(() => {
     if (!audioContextRef.current) audioContextRef.current = new AudioContext();
     if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
     currentStepRef.current = 0;
     nextNoteTimeRef.current = audioContextRef.current.currentTime;
+    isPlayingRef.current = true;
     setIsPlaying(true);
     scheduler();
   }, [scheduler]);
 
   const stop = useCallback(() => {
+    isPlayingRef.current = false;
     if (timerIdRef.current) {
       clearTimeout(timerIdRef.current);
       timerIdRef.current = null;
@@ -483,6 +493,7 @@ export function useDrumMachine() {
 
   useEffect(() => {
     return () => {
+      isPlayingRef.current = false;
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
     };
   }, []);
