@@ -101,8 +101,8 @@ function yinDetect(buffer: Float32Array, sampleRate: number): { frequency: numbe
   return { frequency, clarity: Math.max(0, Math.min(1, clarity)) };
 }
 
-const HISTORY_SIZE = 8;
-const EMA_ALPHA = 0.35; // Exponential moving average smoothing
+const HISTORY_SIZE = 10;
+const EMA_ALPHA = 0.25; // Smoother exponential moving average
 
 export function usePitchDetection() {
   const [isListening, setIsListening] = useState(false);
