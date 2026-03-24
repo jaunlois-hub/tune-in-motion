@@ -97,6 +97,15 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
   ],
 };
 
+const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSettings> }[] = [
+  { name: 'Clean', emoji: '✨', settings: { distortion: 0, gain: 0.7, reverb: 0.15, delay: 0, chorus: 0.1, compressor: 0.2, eqBass: 0.5, eqMid: 0.5, eqTreble: 0.6, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Crunch', emoji: '🔥', settings: { distortion: 0.35, gain: 0.85, reverb: 0.15, delay: 0, chorus: 0, compressor: 0.25, eqBass: 0.55, eqMid: 0.65, eqTreble: 0.55, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Lead', emoji: '🎤', settings: { distortion: 0.5, gain: 0.8, reverb: 0.35, delay: 0.25, delayTime: 0.35, chorus: 0, compressor: 0.35, eqBass: 0.5, eqMid: 0.65, eqTreble: 0.6, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Metal', emoji: '🤘', settings: { distortion: 0.75, gain: 0.9, reverb: 0.1, delay: 0, chorus: 0, compressor: 0.4, noiseGate: 0.5, eqBass: 0.6, eqMid: 0.35, eqTreble: 0.7, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Ambient', emoji: '🌊', settings: { distortion: 0.1, gain: 0.6, reverb: 0.7, delay: 0.5, delayTime: 0.45, chorus: 0.25, compressor: 0.2, eqBass: 0.5, eqMid: 0.5, eqTreble: 0.6, wah: 0, flanger: 0, phaser: 0.15, tremolo: 0.1, tremoloRate: 2, octaver: 0 } },
+  { name: 'Blues', emoji: '🎷', settings: { distortion: 0.25, gain: 0.75, reverb: 0.2, delay: 0.1, chorus: 0, compressor: 0.2, eqBass: 0.55, eqMid: 0.6, eqTreble: 0.5, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+];
+
 function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
   return (
     <motion.button
