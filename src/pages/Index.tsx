@@ -57,6 +57,52 @@ const Index = () => {
           <GuitarTuner />
         </section>
 
+        {/* Intonation Check - Collapsible */}
+        <section id="intonation" className="scroll-mt-20">
+          <Collapsible>
+            <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Wrench className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-bold">🔧 Intonation Check</h2>
+                    <span className="text-[10px] text-muted-foreground">Test each string • Saddle adjustment</span>
+                  </div>
+                  <ChevronDown className="w-5 h-5" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-4 pt-0">
+                  <IntonationChecker />
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        </section>
+
+        {/* Guitar Setup Guide - Collapsible */}
+        <section id="setup" className="scroll-mt-20">
+          <Collapsible>
+            <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Ruler className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-bold">📐 Guitar Setup Guide</h2>
+                    <span className="text-[10px] text-muted-foreground">Action • Relief • Radius • Pickups</span>
+                  </div>
+                  <ChevronDown className="w-5 h-5" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-4 pt-0">
+                  <GuitarSetupGuide />
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        </section>
+
         {/* Metronome - Collapsible */}
         <section id="metronome" className="scroll-mt-20">
           <Collapsible>
