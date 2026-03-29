@@ -1,12 +1,16 @@
-import { Zap, Gauge, ChevronDown } from 'lucide-react';
+import { Zap, Gauge, ChevronDown, Wrench, Ruler } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GuitarTuner } from '@/components/GuitarTuner';
 import { MetronomeView } from '@/components/metronome/MetronomeView';
 import { StudioView } from '@/components/studio/StudioView';
+import { IntonationChecker } from '@/components/IntonationChecker';
+import { GuitarSetupGuide } from '@/components/GuitarSetupGuide';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV_ITEMS = [
   { id: 'tuner', label: '🎸 Tuner' },
+  { id: 'intonation', label: '🔧 Intonation' },
+  { id: 'setup', label: '📐 Setup' },
   { id: 'metronome', label: '🎵 Metronome' },
   { id: 'studio', label: '🎛️ Studio' },
 ];
