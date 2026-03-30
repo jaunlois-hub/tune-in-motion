@@ -30,7 +30,7 @@ const Index = () => {
               <Zap className="w-7 h-7 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
               <div>
                 <h1 className="font-display text-lg font-bold tracking-wider">
-                  BLEED OUT ZONE <span className="text-primary">PRO</span>
+                  BLEED OUT ZONE
                 </h1>
               </div>
             </div>
