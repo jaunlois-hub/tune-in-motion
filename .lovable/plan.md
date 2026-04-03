@@ -1,47 +1,42 @@
 
+## App Layout Reorganization
 
-## Intonation Checker + Guitar Setup Guide
+### Current Problem
+- Studio section is a 772-line monolith mixing unrelated features
+- Intonation and Setup Guide are separate sections but logically belong together
+- Smart Drummer, Metronome, and Chord Recognition are scattered
+- Navigation doesn't reflect logical workflow
 
-### Overview
-Two new components: (1) a step-by-step **Intonation Checker** wizard that tests each string's intonation using the existing pitch detection, and (2) a **Guitar Setup Guide** with reference specs for action height, neck relief, fret radius, and more.
+### New Section Layout (top to bottom)
 
-### Files to Create
+**1. 🎸 Tuner** — Always visible hero (unchanged)
 
-**1. `src/components/IntonationChecker.tsx`**
-- Step-by-step wizard: select a string → play Open → play 12th Harmonic → play 12th Fretted
-- Reuses `usePitchDetection` hook for mic input
-- Auto-locks reading after ~1.5s of stable pitch (clarity > 0.85)
-- Calculates cents difference: `1200 * log2(frettedFreq / harmonicFreq)`
-- Shows diagnosis per string:
-  - Green (< ±2¢): "In tune"
-  - Yellow (2-5¢): "Slightly off"
-  - Red (> 5¢): "Needs adjustment"
-- Provides saddle direction advice: sharp → move saddle back, flat → move forward
-- Estimates adjustment distance (~1mm per 5¢)
-- Summary table at bottom showing all 6 strings with color-coded pass/warn/fail
-- Works with the currently selected tuning
+**2. 🔧 Guitar Setup** — Single collapsible section combining:
+- Intonation Checker
+- Setup Guide (action, relief, radius, pickups, etc.)
+- Tabs or sub-sections within one card
 
-**2. `src/components/GuitarSetupGuide.tsx`**
-- Reference specifications in collapsible sections:
-  - **String Action Height** — recommended heights at 12th fret by string (low E: 2.0mm, high E: 1.5mm for electric; higher for acoustic), measurement method
-  - **Neck Relief** — how to check with capo + feeler gauge method, recommended gap (0.2-0.3mm at 7th-9th fret), truss rod adjustment direction
-  - **Fretboard Radius** — common radii (7.25", 9.5", 12", 16", compound), how radius affects action and playability
-  - **Pickup Height** — recommended distances by pickup type (single coil, humbucker, P90)
-  - **Nut Slot Depth** — how to check, symptoms of too high/low
-  - **Tremolo/Bridge Setup** — floating vs decked, spring tension
-- Visual diagrams using simple ASCII/emoji illustrations
-- Tips for common issues (buzzing, dead notes, intonation problems)
+**3. 🎵 Practice** — New collapsible section combining:
+- Metronome
+- Smart Drummer  
+- Chord Recognition
+- These all relate to playing/practicing together
 
-### Files to Update
+**4. 🎛️ Effects & Tones** — Collapsible section with:
+- Guitar effects pedal board (knobs, categories)
+- Quick presets + custom presets
+- YouTube Tone Matcher
+- Master volume/BPM controls
 
-**3. `src/pages/Index.tsx`**
-- Add two new collapsible sections between Tuner and Metronome:
-  - "🔧 Intonation Check" with `IntonationChecker`
-  - "📐 Guitar Setup Guide" with `GuitarSetupGuide`
-- Add nav items for both sections
+**5. 🎙️ Recording** — Collapsible section with:
+- Loop Recorder
+- Vocal Recorder
 
-### Technical Details
-- Intonation checker manages its own `startListening`/`stopListening` lifecycle
-- Each string's results stored in component state: `Record<number, { open, harmonic, fretted, centsOff }>`
-- The guide is pure static content with collapsible sub-sections — no hooks needed
+### Nav Updates
+Header nav: `Tuner | Setup | Practice | Effects | Record`
 
+### Benefits
+- Logical workflow: tune → setup → practice → shape tone → record
+- Studio monolith broken into 3 focused sections
+- Related tools grouped together
+- Fewer nav items, clearer mental model
