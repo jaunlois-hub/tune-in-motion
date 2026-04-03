@@ -1,18 +1,18 @@
-import { Zap, Gauge, ChevronDown, Wrench, Ruler } from 'lucide-react';
+import { Zap, ChevronDown, Wrench, Gauge, Guitar, Mic } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GuitarTuner } from '@/components/GuitarTuner';
-import { MetronomeView } from '@/components/metronome/MetronomeView';
-import { StudioView } from '@/components/studio/StudioView';
-import { IntonationChecker } from '@/components/IntonationChecker';
-import { GuitarSetupGuide } from '@/components/GuitarSetupGuide';
+import { SetupSection } from '@/components/sections/SetupSection';
+import { PracticeSection } from '@/components/sections/PracticeSection';
+import { EffectsSection } from '@/components/sections/EffectsSection';
+import { RecordingSection } from '@/components/sections/RecordingSection';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV_ITEMS = [
   { id: 'tuner', label: '🎸 Tuner' },
-  { id: 'intonation', label: '🔧 Intonation' },
-  { id: 'setup', label: '📐 Setup' },
-  { id: 'metronome', label: '🎵 Metronome' },
-  { id: 'studio', label: '🎛️ Studio' },
+  { id: 'setup', label: '🔧 Setup' },
+  { id: 'practice', label: '🎵 Practice' },
+  { id: 'effects', label: '🎛️ Effects' },
+  { id: 'record', label: '🎙️ Record' },
 ];
 
 const scrollToSection = (id: string) => {
@@ -50,91 +50,109 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Main Content - Single scrollable page */}
+      {/* Main Content */}
       <main className="container mx-auto px-4 py-6 pb-8 space-y-4">
-        {/* Tuner - Always visible as primary tool */}
+        {/* 1. Tuner - Always visible */}
         <section id="tuner" className="scroll-mt-20">
           <GuitarTuner />
         </section>
 
-        {/* Intonation Check - Collapsible */}
-        <section id="intonation" className="scroll-mt-20">
-          <Collapsible>
-            <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
-              <CollapsibleTrigger asChild>
-                <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Wrench className="w-5 h-5 text-primary" />
-                    <h2 className="font-display text-lg font-bold">🔧 Intonation Check</h2>
-                    <span className="text-[10px] text-muted-foreground">Test each string • Saddle adjustment</span>
-                  </div>
-                  <ChevronDown className="w-5 h-5" />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="p-4 pt-0">
-                  <IntonationChecker />
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-        </section>
-
-        {/* Guitar Setup Guide - Collapsible */}
+        {/* 2. Guitar Setup - Intonation + Setup Guide */}
         <section id="setup" className="scroll-mt-20">
           <Collapsible>
             <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
               <CollapsibleTrigger asChild>
                 <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <Ruler className="w-5 h-5 text-primary" />
-                    <h2 className="font-display text-lg font-bold">📐 Guitar Setup Guide</h2>
-                    <span className="text-[10px] text-muted-foreground">Action • Relief • Radius • Pickups</span>
+                    <Wrench className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-bold">🔧 Guitar Setup</h2>
+                    <span className="text-[10px] text-muted-foreground">Intonation • Action • Relief • Radius</span>
                   </div>
                   <ChevronDown className="w-5 h-5" />
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="p-4 pt-0">
-                  <GuitarSetupGuide />
+                  <SetupSection />
                 </div>
               </CollapsibleContent>
             </div>
           </Collapsible>
         </section>
 
-        {/* Metronome - Collapsible */}
-        <section id="metronome" className="scroll-mt-20">
+        {/* 3. Practice - Metronome + Smart Drummer + Chords */}
+        <section id="practice" className="scroll-mt-20">
           <Collapsible>
             <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
               <CollapsibleTrigger asChild>
                 <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-center gap-3">
                     <Gauge className="w-5 h-5 text-primary" />
-                    <h2 className="font-display text-lg font-bold">🎵 Metronome</h2>
-                    <span className="text-[10px] text-muted-foreground">Tap tempo • Time signatures</span>
+                    <h2 className="font-display text-lg font-bold">🎵 Practice Tools</h2>
+                    <span className="text-[10px] text-muted-foreground">Metronome • Smart Drummer • Chord Recognition</span>
                   </div>
                   <ChevronDown className="w-5 h-5" />
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="p-4 pt-0">
-                  <MetronomeView />
+                  <PracticeSection />
                 </div>
               </CollapsibleContent>
             </div>
           </Collapsible>
         </section>
 
-        {/* Studio Tools - Effects, Drums, Loops, Chords, etc. */}
-        <section id="studio" className="scroll-mt-20">
-          <StudioView />
+        {/* 4. Effects & Tones */}
+        <section id="effects" className="scroll-mt-20">
+          <Collapsible>
+            <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Guitar className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-bold">🎛️ Effects & Tones</h2>
+                    <span className="text-[10px] text-muted-foreground">Pedals • Presets • Tone Matcher • Drums</span>
+                  </div>
+                  <ChevronDown className="w-5 h-5" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-4 pt-0">
+                  <EffectsSection />
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        </section>
+
+        {/* 5. Recording */}
+        <section id="record" className="scroll-mt-20">
+          <Collapsible>
+            <div className="bg-card/50 border border-border rounded-2xl overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Mic className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-bold">🎙️ Recording</h2>
+                    <span className="text-[10px] text-muted-foreground">Loop Recorder • Vocal Effects</span>
+                  </div>
+                  <ChevronDown className="w-5 h-5" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="p-4 pt-0">
+                  <RecordingSection />
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </section>
       </main>
 
       <footer className="py-3 text-center text-[10px] text-muted-foreground/40 space-y-0.5">
         <p>High-precision strobe tuning • ±0.1 cent accuracy</p>
-        <p className="font-display tracking-wider">BLEED OUT ZONE™ PRO by JLo</p>
+        <p className="font-display tracking-wider">BLEED OUT ZONE™ by JLo</p>
       </footer>
     </div>
   );
