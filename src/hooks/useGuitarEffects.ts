@@ -38,17 +38,34 @@ const defaultSettings: EffectSettings = {
 };
 
 /**
- * Attempt tube-style soft-clip distortion curve (warmer than generic waveshaper)
+ * Asymmetric tube-style soft-clip with even-order harmonics for warmth
  */
 function makeTubeDistortionCurve(amount: number): Float32Array {
-  const samples = 44100;
+  const samples = 8192;
   const curve = new Float32Array(samples);
-  const drive = 1 + amount * 8; // Softer drive range for musicality
+
+  if (amount < 0.05) {
+    // Bypass: linear identity curve
+    for (let i = 0; i < samples; i++) {
+      curve[i] = (i * 2) / samples - 1;
+    }
+    return curve;
+  }
+
+  const drive = 1 + amount * 6;
+  const bias = amount * 0.15; // Asymmetry for even harmonics (warmer)
+  const mix = Math.min(amount * 1.5, 1); // Wet/dry blend for low gain
 
   for (let i = 0; i < samples; i++) {
     const x = (i * 2) / samples - 1;
-    // Soft-clip using tanh for warm tube-like saturation
-    curve[i] = Math.tanh(x * drive) * 0.9;
+    const biased = x + bias;
+    // Stage 1: soft tanh clipping
+    const stage1 = Math.tanh(biased * drive);
+    // Stage 2: second harmonic enrichment (asymmetric)
+    const stage2 = Math.tanh(stage1 * (1 + amount * 2)) * 0.95;
+    // Blend dry/wet for subtle crunch at low settings
+    const processed = stage2 * mix + x * (1 - mix);
+    curve[i] = processed * 0.85; // Headroom
   }
   return curve;
 }
@@ -61,23 +78,50 @@ function createRealisticReverb(ctx: AudioContext, duration: number, decay: numbe
 
   for (let ch = 0; ch < 2; ch++) {
     const d = impulse.getChannelData(ch);
+
+    // Generate diffused noise
     for (let i = preDelaySamples; i < totalLen; i++) {
       const t = (i - preDelaySamples) / (totalLen - preDelaySamples);
-      // Multi-exponential decay for realistic room reverb
-      const earlyDecay = Math.exp(-t * decay * 3) * 0.6;
-      const lateDecay = Math.exp(-t * decay * 1.2) * 0.4;
+      const earlyDecay = Math.exp(-t * decay * 3.5) * 0.5;
+      const lateDecay = Math.exp(-t * decay * 1.0) * 0.5;
       const envelope = earlyDecay + lateDecay;
-      // Add slight diffusion via filtered noise
       const noise = Math.random() * 2 - 1;
       d[i] = noise * envelope;
     }
-    // Add a few early reflections
-    const reflections = [0.012, 0.019, 0.028, 0.037, 0.048];
+
+    // Early reflections at realistic room intervals
+    const reflections = [0.008, 0.013, 0.019, 0.023, 0.029, 0.037, 0.043, 0.051];
     for (const r of reflections) {
       const idx = preDelaySamples + Math.floor(sr * r);
       if (idx < totalLen) {
-        d[idx] += (Math.random() > 0.5 ? 1 : -1) * 0.3 * Math.exp(-r * 10);
+        d[idx] += (Math.random() > 0.5 ? 1 : -1) * 0.25 * Math.exp(-r * 8);
       }
+    }
+
+    // Diffusion: smear short segments for smoother tail
+    for (let pass = 0; pass < 3; pass++) {
+      const segLen = Math.floor(sr * 0.004 * (pass + 1));
+      for (let i = preDelaySamples + segLen; i < totalLen - segLen; i += segLen) {
+        const swap = i + Math.floor(Math.random() * segLen);
+        if (swap < totalLen) {
+          const tmp = d[i];
+          d[i] = (d[i] + d[swap]) * 0.5;
+          d[swap] = (d[swap] + tmp) * 0.5;
+        }
+      }
+    }
+
+    // Bandpass the impulse: cut <200Hz and >8kHz
+    // Simple FIR approximation via running average for low-cut
+    const lowCutSamples = Math.floor(sr / 200);
+    let runSum = 0;
+    for (let i = preDelaySamples; i < totalLen; i++) {
+      runSum += d[i];
+      if (i >= preDelaySamples + lowCutSamples) {
+        runSum -= d[i - lowCutSamples];
+      }
+      const avg = runSum / Math.min(i - preDelaySamples + 1, lowCutSamples);
+      d[i] = d[i] - avg * 0.7; // Subtract low-frequency content
     }
   }
   return impulse;
@@ -90,6 +134,7 @@ export function useGuitarEffects() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nodesRef = useRef<Record<string, AudioNode>>({});
+  const noiseGateRafRef = useRef<number>(0);
 
   const start = useCallback(async () => {
     try {
@@ -104,58 +149,79 @@ export function useGuitarEffects() {
 
       // === INPUT STAGE ===
 
-      // Noise gate via gain
+      // Noise gate gain node + analyser for real gating
       n.noiseGateGain = ctx.createGain();
       (n.noiseGateGain as GainNode).gain.value = 1;
+      n.noiseGateAnalyser = ctx.createAnalyser();
+      (n.noiseGateAnalyser as AnalyserNode).fftSize = 256;
+      (n.noiseGateAnalyser as AnalyserNode).smoothingTimeConstant = 0.8;
 
-      // Compressor — musical settings
+      // Compressor
       n.compressor = ctx.createDynamicsCompressor();
       const comp = n.compressor as DynamicsCompressorNode;
-      comp.threshold.value = -24;
+      const compThresh = -50 + settings.compressor * 40;
+      comp.threshold.value = compThresh;
       comp.knee.value = 12;
-      comp.ratio.value = 4;
+      comp.ratio.value = 2 + settings.compressor * 10;
       comp.attack.value = 0.005;
       comp.release.value = 0.15;
 
       // === TONE SHAPING ===
 
-      // Pre-distortion EQ (critical for good distortion tone)
+      // Pre-distortion highpass (cut mud)
       n.preDistFilter = ctx.createBiquadFilter();
       (n.preDistFilter as BiquadFilterNode).type = 'highpass';
-      (n.preDistFilter as BiquadFilterNode).frequency.value = 80; // Cut mud below 80Hz
+      (n.preDistFilter as BiquadFilterNode).frequency.value = 80;
       (n.preDistFilter as BiquadFilterNode).Q.value = 0.7;
 
-      // EQ — 3-band
+      // EQ — 3-band (placed before distortion for tone shaping)
       n.eqBass = ctx.createBiquadFilter();
       (n.eqBass as BiquadFilterNode).type = 'lowshelf';
       (n.eqBass as BiquadFilterNode).frequency.value = 300;
-      (n.eqBass as BiquadFilterNode).gain.value = (settings.eqBass - 0.5) * 20;
+      (n.eqBass as BiquadFilterNode).gain.value = (settings.eqBass - 0.5) * 12;
 
       n.eqMid = ctx.createBiquadFilter();
       (n.eqMid as BiquadFilterNode).type = 'peaking';
       (n.eqMid as BiquadFilterNode).frequency.value = 800;
       (n.eqMid as BiquadFilterNode).Q.value = 1.2;
-      (n.eqMid as BiquadFilterNode).gain.value = (settings.eqMid - 0.5) * 20;
+      (n.eqMid as BiquadFilterNode).gain.value = (settings.eqMid - 0.5) * 12;
 
       n.eqTreble = ctx.createBiquadFilter();
       (n.eqTreble as BiquadFilterNode).type = 'highshelf';
       (n.eqTreble as BiquadFilterNode).frequency.value = 3000;
-      (n.eqTreble as BiquadFilterNode).gain.value = (settings.eqTreble - 0.5) * 20;
+      (n.eqTreble as BiquadFilterNode).gain.value = (settings.eqTreble - 0.5) * 12;
 
       // === DISTORTION ===
-      // Pre-gain for drive level
       n.preGain = ctx.createGain();
-      (n.preGain as GainNode).gain.value = 1 + settings.distortion * 3;
+      (n.preGain as GainNode).gain.value = settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6;
 
       n.distortion = ctx.createWaveShaper();
       (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
       (n.distortion as WaveShaperNode).oversample = '4x';
 
-      // Post-distortion tone control (tame harsh highs)
+      // Post-distortion tone control
       n.postDistTone = ctx.createBiquadFilter();
       (n.postDistTone as BiquadFilterNode).type = 'lowpass';
-      (n.postDistTone as BiquadFilterNode).frequency.value = 5000 - settings.distortion * 2000;
-      (n.postDistTone as BiquadFilterNode).Q.value = 0.7;
+      const toneFreq = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
+      (n.postDistTone as BiquadFilterNode).frequency.value = toneFreq;
+      (n.postDistTone as BiquadFilterNode).Q.value = 0.8;
+
+      // === CABINET SIMULATION (3 cascaded filters) ===
+      n.cabHigh = ctx.createBiquadFilter();
+      (n.cabHigh as BiquadFilterNode).type = 'highpass';
+      (n.cabHigh as BiquadFilterNode).frequency.value = 80;
+      (n.cabHigh as BiquadFilterNode).Q.value = 0.5;
+
+      n.cabPresence = ctx.createBiquadFilter();
+      (n.cabPresence as BiquadFilterNode).type = 'peaking';
+      (n.cabPresence as BiquadFilterNode).frequency.value = 2000;
+      (n.cabPresence as BiquadFilterNode).Q.value = 1.5;
+      (n.cabPresence as BiquadFilterNode).gain.value = 3;
+
+      n.cabLow = ctx.createBiquadFilter();
+      (n.cabLow as BiquadFilterNode).type = 'lowpass';
+      (n.cabLow as BiquadFilterNode).frequency.value = 4500;
+      (n.cabLow as BiquadFilterNode).Q.value = 0.6;
 
       // === WAH ===
       n.wah = ctx.createBiquadFilter();
@@ -171,7 +237,7 @@ export function useGuitarEffects() {
       n.gain = ctx.createGain();
       (n.gain as GainNode).gain.value = settings.gain;
 
-      // === CHORUS — stereo, deeper modulation ===
+      // === CHORUS — dual voice ===
       const chorusDelay = ctx.createDelay(0.05);
       chorusDelay.delayTime.value = 0.012;
       n.chorusDelay = chorusDelay;
@@ -179,12 +245,11 @@ export function useGuitarEffects() {
       (n.chorusLfo as OscillatorNode).type = 'sine';
       (n.chorusLfo as OscillatorNode).frequency.value = settings.chorusRate;
       n.chorusLfoGain = ctx.createGain();
-      (n.chorusLfoGain as GainNode).gain.value = 0.004; // Moderate depth
+      (n.chorusLfoGain as GainNode).gain.value = 0.004;
       (n.chorusLfo as OscillatorNode).connect(n.chorusLfoGain as GainNode);
       (n.chorusLfoGain as GainNode).connect(chorusDelay.delayTime);
       (n.chorusLfo as OscillatorNode).start();
 
-      // Second voice for richer chorus
       const chorusDelay2 = ctx.createDelay(0.05);
       chorusDelay2.delayTime.value = 0.018;
       n.chorusDelay2 = chorusDelay2;
@@ -209,7 +274,7 @@ export function useGuitarEffects() {
       flangerDelay.delayTime.value = 0.003;
       n.flangerDelay = flangerDelay;
       n.flangerLfo = ctx.createOscillator();
-      (n.flangerLfo as OscillatorNode).type = 'triangle'; // Triangle for smoother sweep
+      (n.flangerLfo as OscillatorNode).type = 'triangle';
       (n.flangerLfo as OscillatorNode).frequency.value = settings.flangerRate;
       n.flangerLfoGain = ctx.createGain();
       (n.flangerLfoGain as GainNode).gain.value = 0.002;
@@ -223,7 +288,7 @@ export function useGuitarEffects() {
       n.flangerDry = ctx.createGain();
       (n.flangerDry as GainNode).gain.value = 1;
 
-      // === PHASER — 6-stage for deeper effect ===
+      // === PHASER — 6-stage ===
       const phaserStages: BiquadFilterNode[] = [];
       const phaserFreqs = [200, 400, 800, 1200, 2000, 3200];
       for (let i = 0; i < 6; i++) {
@@ -259,29 +324,27 @@ export function useGuitarEffects() {
       (n.tremoloLfoGain as GainNode).connect((n.tremoloGain as GainNode).gain);
       (n.tremoloLfo as OscillatorNode).start();
 
-      // === DELAY — with highpass on feedback for clarity ===
+      // === DELAY with filtered feedback ===
       n.delay = ctx.createDelay(2);
       (n.delay as DelayNode).delayTime.value = settings.delayTime;
       n.delayGain = ctx.createGain();
-      (n.delayGain as GainNode).gain.value = settings.delay * 0.7;
-      // Feedback filter — cut low rumble from delay repeats
+      (n.delayGain as GainNode).gain.value = settings.delay * 0.6;
       n.delayFilter = ctx.createBiquadFilter();
       (n.delayFilter as BiquadFilterNode).type = 'highpass';
       (n.delayFilter as BiquadFilterNode).frequency.value = 200;
-      // Delay damping — cut highs each repeat
       n.delayDamping = ctx.createBiquadFilter();
       (n.delayDamping as BiquadFilterNode).type = 'lowpass';
-      (n.delayDamping as BiquadFilterNode).frequency.value = 4000;
+      (n.delayDamping as BiquadFilterNode).frequency.value = 3500;
 
-      // === REVERB — realistic impulse ===
+      // === REVERB ===
       n.convolver = ctx.createConvolver();
       (n.convolver as ConvolverNode).buffer = createRealisticReverb(ctx, 2.5, 2.5, 0.02);
       n.reverbGain = ctx.createGain();
-      (n.reverbGain as GainNode).gain.value = settings.reverb * 0.8;
+      (n.reverbGain as GainNode).gain.value = settings.reverb * 0.7;
       n.dryGain = ctx.createGain();
       (n.dryGain as GainNode).gain.value = 1;
 
-      // === Output limiter to prevent clipping ===
+      // === Output limiter ===
       n.limiter = ctx.createDynamicsCompressor();
       const limiter = n.limiter as DynamicsCompressorNode;
       limiter.threshold.value = -3;
@@ -291,7 +354,8 @@ export function useGuitarEffects() {
       limiter.release.value = 0.05;
 
       // === SIGNAL CHAIN ===
-      // source → noiseGate → compressor → preDistFilter → eqBass → eqMid → eqTreble
+      // source → noiseGateAnalyser (tap) → noiseGateGain → compressor → preDistFilter → EQ
+      source.connect(n.noiseGateAnalyser);
       source.connect(n.noiseGateGain);
       (n.noiseGateGain as GainNode).connect(n.compressor);
       (n.compressor as DynamicsCompressorNode).connect(n.preDistFilter);
@@ -299,16 +363,19 @@ export function useGuitarEffects() {
       (n.eqBass as BiquadFilterNode).connect(n.eqMid);
       (n.eqMid as BiquadFilterNode).connect(n.eqTreble);
 
-      // → preGain → distortion → postDistTone
+      // → preGain → distortion → postDistTone → cabinet sim
       (n.eqTreble as BiquadFilterNode).connect(n.preGain);
       (n.preGain as GainNode).connect(n.distortion);
       (n.distortion as WaveShaperNode).connect(n.postDistTone);
+      (n.postDistTone as BiquadFilterNode).connect(n.cabHigh);
+      (n.cabHigh as BiquadFilterNode).connect(n.cabPresence);
+      (n.cabPresence as BiquadFilterNode).connect(n.cabLow);
 
       // → wah split/merge
-      const postDist = n.postDistTone;
-      postDist.connect(n.wahWet as GainNode);
+      const postCab = n.cabLow;
+      postCab.connect(n.wahWet as GainNode);
       (n.wahWet as GainNode).connect(n.wah);
-      postDist.connect(n.wahDry as GainNode);
+      postCab.connect(n.wahDry as GainNode);
       const wahMerge = ctx.createGain();
       n.wahMerge = wahMerge;
       (n.wah as BiquadFilterNode).connect(wahMerge);
@@ -361,7 +428,7 @@ export function useGuitarEffects() {
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
-      (n.delayGain as GainNode).connect(n.delay as DelayNode); // feedback loop
+      (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
       (n.tremoloGain as GainNode).connect(n.dryGain as GainNode);
 
@@ -374,12 +441,58 @@ export function useGuitarEffects() {
 
       (nodesRef.current as any)._phaserStages = phaserStages;
 
+      // === NOISE GATE: rAF-based level monitoring ===
+      const analyserData = new Uint8Array((n.noiseGateAnalyser as AnalyserNode).frequencyBinCount);
+      let gateOpen = true;
+
+      const pollGate = () => {
+        if (!audioContextRef.current) return;
+        const analyser = nodesRef.current.noiseGateAnalyser as AnalyserNode | undefined;
+        const gateGain = nodesRef.current.noiseGateGain as GainNode | undefined;
+        if (!analyser || !gateGain) return;
+
+        analyser.getByteFrequencyData(analyserData);
+        let sum = 0;
+        for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+        const avg = sum / analyserData.length / 255; // 0-1
+
+        // Threshold scales with noiseGate setting: 0 = disabled, 1 = aggressive
+        const currentSettings = settingsRef.current;
+        const threshold = currentSettings.noiseGate * 0.15; // max threshold ~0.15
+
+        if (currentSettings.noiseGate < 0.05) {
+          // Gate disabled
+          if (!gateOpen) {
+            gateGain.gain.setTargetAtTime(1, audioContextRef.current!.currentTime, 0.005);
+            gateOpen = true;
+          }
+        } else if (avg > threshold) {
+          if (!gateOpen) {
+            gateGain.gain.setTargetAtTime(1, audioContextRef.current!.currentTime, 0.005); // 5ms attack
+            gateOpen = true;
+          }
+        } else {
+          if (gateOpen) {
+            gateGain.gain.setTargetAtTime(0, audioContextRef.current!.currentTime, 0.05); // 50ms release
+            gateOpen = false;
+          }
+        }
+
+        noiseGateRafRef.current = requestAnimationFrame(pollGate);
+      };
+      noiseGateRafRef.current = requestAnimationFrame(pollGate);
+
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
   }, [settings]);
 
+  // Keep a ref to settings for the noise gate rAF callback
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
   const stop = useCallback(() => {
+    if (noiseGateRafRef.current) cancelAnimationFrame(noiseGateRafRef.current);
     ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo'].forEach(k => {
       try { (nodesRef.current[k] as OscillatorNode)?.stop(); } catch {}
     });
@@ -396,13 +509,13 @@ export function useGuitarEffects() {
     const n = nodesRef.current;
     // Distortion
     if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
-    if (n.preGain) (n.preGain as GainNode).gain.value = 1 + settings.distortion * 3;
-    if (n.postDistTone) (n.postDistTone as BiquadFilterNode).frequency.value = 5000 - settings.distortion * 2000;
+    if (n.preGain) (n.preGain as GainNode).gain.value = settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6;
+    if (n.postDistTone) (n.postDistTone as BiquadFilterNode).frequency.value = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
     // Delay
     if (n.delay) (n.delay as DelayNode).delayTime.value = settings.delayTime;
-    if (n.delayGain) (n.delayGain as GainNode).gain.value = settings.delay * 0.7;
+    if (n.delayGain) (n.delayGain as GainNode).gain.value = settings.delay * 0.6;
     // Reverb
-    if (n.reverbGain) (n.reverbGain as GainNode).gain.value = settings.reverb * 0.8;
+    if (n.reverbGain) (n.reverbGain as GainNode).gain.value = settings.reverb * 0.7;
     // Gain
     if (n.gain) (n.gain as GainNode).gain.value = settings.gain;
     // Compressor
@@ -411,10 +524,10 @@ export function useGuitarEffects() {
       (n.compressor as DynamicsCompressorNode).threshold.value = thresh;
       (n.compressor as DynamicsCompressorNode).ratio.value = 2 + settings.compressor * 10;
     }
-    // EQ
-    if (n.eqBass) (n.eqBass as BiquadFilterNode).gain.value = (settings.eqBass - 0.5) * 20;
-    if (n.eqMid) (n.eqMid as BiquadFilterNode).gain.value = (settings.eqMid - 0.5) * 20;
-    if (n.eqTreble) (n.eqTreble as BiquadFilterNode).gain.value = (settings.eqTreble - 0.5) * 20;
+    // EQ (reduced range: ±6dB instead of ±10dB)
+    if (n.eqBass) (n.eqBass as BiquadFilterNode).gain.value = (settings.eqBass - 0.5) * 12;
+    if (n.eqMid) (n.eqMid as BiquadFilterNode).gain.value = (settings.eqMid - 0.5) * 12;
+    if (n.eqTreble) (n.eqTreble as BiquadFilterNode).gain.value = (settings.eqTreble - 0.5) * 12;
     // Wah
     if (n.wah) {
       (n.wah as BiquadFilterNode).frequency.value = 200 + settings.wahFreq * 3800;
