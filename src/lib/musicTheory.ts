@@ -39,7 +39,7 @@ export const CHORD_INTERVALS: Record<string, number[]> = {
 export interface Progression {
   name: string;
   numerals: string[];
-  quality: ('major' | 'minor' | 'dom7' | 'min7' | 'dim')[];
+  quality: ('major' | 'minor' | 'dom7' | 'min7' | 'maj7' | 'dim')[];
   degrees: number[]; // semitones from root
 }
 
