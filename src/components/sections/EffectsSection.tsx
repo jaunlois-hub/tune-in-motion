@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useGuitarEffects, type EffectSettings } from '@/hooks/useGuitarEffects';
+import { useGuitarEffects, type EffectSettings, CABINET_TYPES, type CabinetType } from '@/hooks/useGuitarEffects';
 import { useDrumMachine, DRUM_PATTERNS } from '@/hooks/useDrumMachine';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
@@ -222,7 +222,7 @@ export function EffectsSection() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings, cabinetType, setCabinetType } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
 
@@ -326,7 +326,28 @@ export function EffectsSection() {
               ))}
             </div>
 
-            {/* Effect Category Tabs */}
+            {/* Cabinet Type Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">🔊 Cabinet:</span>
+              <div className="flex gap-1">
+                {CABINET_TYPES.map((cab) => (
+                  <button
+                    key={cab.id}
+                    onClick={() => setCabinetType(cab.id)}
+                    title={cab.description}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+                      cabinetType === cab.id
+                        ? "bg-primary/20 text-primary border border-primary/30"
+                        : "bg-secondary/50 text-muted-foreground hover:bg-secondary border border-transparent"
+                    )}
+                  >
+                    {cab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-1 overflow-x-auto pb-1">
               {EFFECT_CATEGORIES.map((cat) => (
                 <button

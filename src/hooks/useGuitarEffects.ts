@@ -127,9 +127,24 @@ function createRealisticReverb(ctx: AudioContext, duration: number, decay: numbe
   return impulse;
 }
 
+export type CabinetType = '1x12' | '2x12' | '4x12';
+
+export const CABINET_TYPES: { id: CabinetType; label: string; description: string }[] = [
+  { id: '1x12', label: '1x12 Combo', description: 'Open-back combo — bright, airy, scooped mids' },
+  { id: '2x12', label: '2x12 Open', description: 'Open-back 2x12 — balanced, warm presence' },
+  { id: '4x12', label: '4x12 Closed', description: 'Closed-back 4x12 — tight lows, aggressive mids' },
+];
+
+const CAB_PARAMS: Record<CabinetType, { hp: number; hpQ: number; presFreq: number; presQ: number; presGain: number; lp: number; lpQ: number }> = {
+  '1x12': { hp: 120, hpQ: 0.7, presFreq: 2500, presQ: 1.0, presGain: 2, lp: 5500, lpQ: 0.5 },
+  '2x12': { hp: 80, hpQ: 0.5, presFreq: 2000, presQ: 1.5, presGain: 3, lp: 4500, lpQ: 0.6 },
+  '4x12': { hp: 60, hpQ: 0.6, presFreq: 1600, presQ: 2.0, presGain: 4, lp: 3800, lpQ: 0.7 },
+};
+
 export function useGuitarEffects() {
   const [isActive, setIsActive] = useState(false);
   const [settings, setSettings] = useState<EffectSettings>(defaultSettings);
+  const [cabinetType, setCabinetType] = useState<CabinetType>('2x12');
   const [error, setError] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -207,21 +222,22 @@ export function useGuitarEffects() {
       (n.postDistTone as BiquadFilterNode).Q.value = 0.8;
 
       // === CABINET SIMULATION (3 cascaded filters) ===
+      const cab = CAB_PARAMS[cabinetType];
       n.cabHigh = ctx.createBiquadFilter();
       (n.cabHigh as BiquadFilterNode).type = 'highpass';
-      (n.cabHigh as BiquadFilterNode).frequency.value = 80;
-      (n.cabHigh as BiquadFilterNode).Q.value = 0.5;
+      (n.cabHigh as BiquadFilterNode).frequency.value = cab.hp;
+      (n.cabHigh as BiquadFilterNode).Q.value = cab.hpQ;
 
       n.cabPresence = ctx.createBiquadFilter();
       (n.cabPresence as BiquadFilterNode).type = 'peaking';
-      (n.cabPresence as BiquadFilterNode).frequency.value = 2000;
-      (n.cabPresence as BiquadFilterNode).Q.value = 1.5;
-      (n.cabPresence as BiquadFilterNode).gain.value = 3;
+      (n.cabPresence as BiquadFilterNode).frequency.value = cab.presFreq;
+      (n.cabPresence as BiquadFilterNode).Q.value = cab.presQ;
+      (n.cabPresence as BiquadFilterNode).gain.value = cab.presGain;
 
       n.cabLow = ctx.createBiquadFilter();
       (n.cabLow as BiquadFilterNode).type = 'lowpass';
-      (n.cabLow as BiquadFilterNode).frequency.value = 4500;
-      (n.cabLow as BiquadFilterNode).Q.value = 0.6;
+      (n.cabLow as BiquadFilterNode).frequency.value = cab.lp;
+      (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
 
       // === WAH ===
       n.wah = ctx.createBiquadFilter();
@@ -485,7 +501,7 @@ export function useGuitarEffects() {
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
-  }, [settings]);
+  }, [settings, cabinetType]);
 
   // Keep a ref to settings for the noise gate rAF callback
   const settingsRef = useRef(settings);
@@ -547,7 +563,22 @@ export function useGuitarEffects() {
     // Tremolo
     if (n.tremoloLfoGain) (n.tremoloLfoGain as GainNode).gain.value = settings.tremolo * 0.5;
     if (n.tremoloLfo) (n.tremoloLfo as OscillatorNode).frequency.value = settings.tremoloRate;
-  }, [settings, isActive]);
+    // Cabinet type
+    const cab = CAB_PARAMS[cabinetType];
+    if (n.cabHigh) {
+      (n.cabHigh as BiquadFilterNode).frequency.value = cab.hp;
+      (n.cabHigh as BiquadFilterNode).Q.value = cab.hpQ;
+    }
+    if (n.cabPresence) {
+      (n.cabPresence as BiquadFilterNode).frequency.value = cab.presFreq;
+      (n.cabPresence as BiquadFilterNode).Q.value = cab.presQ;
+      (n.cabPresence as BiquadFilterNode).gain.value = cab.presGain;
+    }
+    if (n.cabLow) {
+      (n.cabLow as BiquadFilterNode).frequency.value = cab.lp;
+      (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
+    }
+  }, [settings, isActive, cabinetType]);
 
   const updateSetting = useCallback((key: keyof EffectSettings, value: number) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -557,5 +588,5 @@ export function useGuitarEffects() {
 
   useEffect(() => { return () => { stop(); }; }, [stop]);
 
-  return { isActive, settings, error, start, stop, updateSetting, resetSettings };
+  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType };
 }
