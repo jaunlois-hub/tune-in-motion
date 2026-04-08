@@ -326,7 +326,28 @@ export function EffectsSection() {
               ))}
             </div>
 
-            {/* Effect Category Tabs */}
+            {/* Cabinet Type Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">🔊 Cabinet:</span>
+              <div className="flex gap-1">
+                {CABINET_TYPES.map((cab) => (
+                  <button
+                    key={cab.id}
+                    onClick={() => setCabinetType(cab.id)}
+                    title={cab.description}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-medium transition-all",
+                      cabinetType === cab.id
+                        ? "bg-primary/20 text-primary border border-primary/30"
+                        : "bg-secondary/50 text-muted-foreground hover:bg-secondary border border-transparent"
+                    )}
+                  >
+                    {cab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-1 overflow-x-auto pb-1">
               {EFFECT_CATEGORIES.map((cat) => (
                 <button
