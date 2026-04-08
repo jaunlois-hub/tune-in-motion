@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useGuitarEffects, type EffectSettings } from '@/hooks/useGuitarEffects';
+import { useGuitarEffects, type EffectSettings, CABINET_TYPES, type CabinetType } from '@/hooks/useGuitarEffects';
 import { useDrumMachine, DRUM_PATTERNS } from '@/hooks/useDrumMachine';
 import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
@@ -222,7 +222,7 @@ export function EffectsSection() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings, cabinetType, setCabinetType } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
 
