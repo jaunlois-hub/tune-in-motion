@@ -25,7 +25,7 @@ export function GuitarTuner() {
   const [a4, setA4] = useState(440);
   const [tunerMode, setTunerMode] = useState<TunerMode>('strobe');
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
-  const { playingFrequency, toggle: toggleTone, stop: stopTone } = useReferenceTone();
+  const { playingFrequency, toggle: toggleTone, stop: stopTone, playForDuration } = useReferenceTone();
   const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
   const { isMonitoring, monitorVolume, startMonitoring, stopMonitoring, updateVolume } = useAudioMonitoring();
   const wasListeningRef = useRef(false);
@@ -122,6 +122,7 @@ export function GuitarTuner() {
           isActive={isActive}
           playingFrequency={playingFrequency}
           onPlayTone={toggleTone}
+          onPlayForDuration={playForDuration}
         />
 
         {/* Frequency comparison */}
