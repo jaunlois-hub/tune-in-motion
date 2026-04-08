@@ -48,6 +48,13 @@ export function useReferenceTone() {
     setPlayingFrequency(null);
   }, [cleanup]);
 
+  const playForDuration = useCallback((frequency: number, ms: number) => {
+    play(frequency);
+    setTimeout(() => {
+      stop();
+    }, ms);
+  }, [play, stop]);
+
   const toggle = useCallback((frequency: number) => {
     if (playingFrequency === frequency) {
       stop();
@@ -56,5 +63,5 @@ export function useReferenceTone() {
     }
   }, [playingFrequency, play, stop]);
 
-  return { playingFrequency, toggle, stop };
+  return { playingFrequency, toggle, stop, playForDuration };
 }

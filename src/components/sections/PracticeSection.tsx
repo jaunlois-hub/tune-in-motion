@@ -1,10 +1,22 @@
 import { useState } from 'react';
-import { Gauge, Activity, Music } from 'lucide-react';
+import { Gauge, Activity, Music, Circle, Drum, Guitar } from 'lucide-react';
 import { MetronomeView } from '@/components/metronome/MetronomeView';
 import { SmartDrummer } from '@/components/SmartDrummer';
 import { ChordRecognitionView } from '@/components/studio/ChordRecognitionView';
+import { CircleOfFifths } from '@/components/practice/CircleOfFifths';
+import { RhythmPatterns } from '@/components/practice/RhythmPatterns';
+import { RiffsAndScales } from '@/components/practice/RiffsAndScales';
 
-type PracticeTab = 'metronome' | 'drummer' | 'chords';
+type PracticeTab = 'metronome' | 'drummer' | 'chords' | 'circle' | 'rhythms' | 'riffs';
+
+const TABS: { id: PracticeTab; label: string; icon: React.ElementType }[] = [
+  { id: 'metronome', label: 'Metronome', icon: Gauge },
+  { id: 'drummer', label: 'Smart Drummer', icon: Activity },
+  { id: 'chords', label: 'Chords', icon: Music },
+  { id: 'circle', label: 'Circle of 5ths', icon: Circle },
+  { id: 'rhythms', label: 'Rhythms', icon: Drum },
+  { id: 'riffs', label: 'Riffs & Scales', icon: Guitar },
+];
 
 export function PracticeSection() {
   const [activeTab, setActiveTab] = useState<PracticeTab>('metronome');
@@ -12,45 +24,29 @@ export function PracticeSection() {
   return (
     <div className="space-y-4">
       {/* Tab Switcher */}
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border w-fit mx-auto">
-        <button
-          onClick={() => setActiveTab('metronome')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
-            activeTab === 'metronome'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Gauge className="w-3.5 h-3.5" />
-          Metronome
-        </button>
-        <button
-          onClick={() => setActiveTab('drummer')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
-            activeTab === 'drummer'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Activity className="w-3.5 h-3.5" />
-          Smart Drummer
-        </button>
-        <button
-          onClick={() => setActiveTab('chords')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
-            activeTab === 'chords'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Music className="w-3.5 h-3.5" />
-          Chords
-        </button>
+      <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border w-fit mx-auto flex-wrap justify-center">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
+              activeTab === id
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'metronome' && <MetronomeView />}
       {activeTab === 'drummer' && <SmartDrummer />}
       {activeTab === 'chords' && <ChordRecognitionView />}
+      {activeTab === 'circle' && <CircleOfFifths />}
+      {activeTab === 'rhythms' && <RhythmPatterns />}
+      {activeTab === 'riffs' && <RiffsAndScales />}
     </div>
   );
 }
