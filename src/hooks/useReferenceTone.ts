@@ -7,17 +7,21 @@ export function useReferenceTone() {
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const cleanup = useCallback(() => {
-    if (gainNodeRef.current && audioContextRef.current) {
+    const oldOsc = oscillatorRef.current;
+    const oldCtx = audioContextRef.current;
+    const oldGain = gainNodeRef.current;
+    oscillatorRef.current = null;
+    audioContextRef.current = null;
+    gainNodeRef.current = null;
+
+    if (oldGain && oldCtx) {
       try {
-        gainNodeRef.current.gain.linearRampToValueAtTime(0, audioContextRef.current.currentTime + 0.05);
+        oldGain.gain.linearRampToValueAtTime(0, oldCtx.currentTime + 0.05);
       } catch {}
     }
     setTimeout(() => {
-      try { oscillatorRef.current?.stop(); } catch {}
-      oscillatorRef.current = null;
-      try { audioContextRef.current?.close(); } catch {}
-      audioContextRef.current = null;
-      gainNodeRef.current = null;
+      try { oldOsc?.stop(); } catch {}
+      try { oldCtx?.close(); } catch {}
     }, 60);
   }, []);
 
