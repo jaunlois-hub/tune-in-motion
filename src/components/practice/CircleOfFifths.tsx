@@ -24,8 +24,11 @@ export function CircleOfFifths() {
   const subdominant = CIRCLE_OF_FIFTHS_MAJOR[(selectedKey + 11) % 12]; // prev = subdominant
 
   const playChord = useCallback((frequencies: number[], duration = 0.8) => {
-    const ctx = audioCtxRef.current || new AudioContext();
-    audioCtxRef.current = ctx;
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
 
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0.15, ctx.currentTime);
