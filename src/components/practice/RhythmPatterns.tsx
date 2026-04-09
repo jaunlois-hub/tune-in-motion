@@ -91,8 +91,11 @@ export function RhythmPatterns() {
   }, []);
 
   const startPlaying = useCallback(() => {
-    const ctx = ctxRef.current || new AudioContext();
-    ctxRef.current = ctx;
+    if (!ctxRef.current || ctxRef.current.state === 'closed') {
+      ctxRef.current = new AudioContext();
+    }
+    const ctx = ctxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
 
     stopPlaying();
     setIsPlaying(true);

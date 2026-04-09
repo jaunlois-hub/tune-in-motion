@@ -115,8 +115,11 @@ export function RiffsAndScales() {
 
   const playRiff = useCallback(() => {
     stopPlaying();
-    const ctx = ctxRef.current || new AudioContext();
-    ctxRef.current = ctx;
+    if (!ctxRef.current || ctxRef.current.state === 'closed') {
+      ctxRef.current = new AudioContext();
+    }
+    const ctx = ctxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
     setIsPlaying(true);
 
     const beatDur = (60 / selectedRiff.bpm) * (100 / speed);
