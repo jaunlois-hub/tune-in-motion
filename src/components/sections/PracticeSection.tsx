@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Gauge, Activity, Music, Circle, Drum, Guitar } from 'lucide-react';
+import { Gauge, Activity, Music, Circle, Drum, Guitar, Mic2 } from 'lucide-react';
 import { MetronomeView } from '@/components/metronome/MetronomeView';
 import { SmartDrummer } from '@/components/SmartDrummer';
 import { ChordRecognitionView } from '@/components/studio/ChordRecognitionView';
 import { CircleOfFifths } from '@/components/practice/CircleOfFifths';
 import { RhythmPatterns } from '@/components/practice/RhythmPatterns';
 import { RiffsAndScales } from '@/components/practice/RiffsAndScales';
+import { JamSession } from '@/components/practice/JamSession';
 
-type PracticeTab = 'metronome' | 'drummer' | 'chords' | 'circle' | 'rhythms' | 'riffs';
+type PracticeTab = 'metronome' | 'drummer' | 'chords' | 'circle' | 'rhythms' | 'riffs' | 'jam';
 
 const TABS: { id: PracticeTab; label: string; icon: React.ElementType }[] = [
   { id: 'metronome', label: 'Metronome', icon: Gauge },
@@ -16,6 +17,7 @@ const TABS: { id: PracticeTab; label: string; icon: React.ElementType }[] = [
   { id: 'circle', label: 'Circle of 5ths', icon: Circle },
   { id: 'rhythms', label: 'Rhythms', icon: Drum },
   { id: 'riffs', label: 'Riffs & Scales', icon: Guitar },
+  { id: 'jam', label: 'Jam Session', icon: Mic2 },
 ];
 
 export function PracticeSection() {
@@ -47,6 +49,7 @@ export function PracticeSection() {
       {activeTab === 'circle' && <CircleOfFifths />}
       {activeTab === 'rhythms' && <RhythmPatterns />}
       {activeTab === 'riffs' && <RiffsAndScales />}
+      {activeTab === 'jam' && <JamSession />}
     </div>
   );
 }
