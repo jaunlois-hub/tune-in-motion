@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Square, Guitar, Music2 } from 'lucide-react';
+import { Play, Square, Guitar, Music2, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -101,17 +101,57 @@ export function RiffsAndScales() {
   const [rootNote, setRootNote] = useState<NoteName>('A');
   const [speed, setSpeed] = useState(100);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [countIn, setCountIn] = useState(-1);
+  const loopingRef = useRef(false);
   const ctxRef = useRef<AudioContext | null>(null);
   const oscsRef = useRef<OscillatorNode[]>([]);
   const timeoutsRef = useRef<number[]>([]);
 
   const stopPlaying = useCallback(() => {
+    loopingRef.current = false;
     oscsRef.current.forEach(o => { try { o.stop(); } catch {} });
     oscsRef.current = [];
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
     setIsPlaying(false);
+    setCountIn(-1);
   }, []);
+
+  const scheduleRiff = useCallback((ctx: AudioContext) => {
+    const beatDur = (60 / selectedRiff.bpm) * (100 / speed);
+    let time = ctx.currentTime + 0.05;
+
+    selectedRiff.notes.forEach((note) => {
+      const freq = fretToFrequency(note.string, note.fret);
+      const dur = note.duration * beatDur;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, time);
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.2, time + 0.01);
+      gain.gain.setValueAtTime(0.2, time + dur * 0.7);
+      gain.gain.linearRampToValueAtTime(0, time + dur);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2000, time);
+      osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+      osc.start(time); osc.stop(time + dur + 0.05);
+      oscsRef.current.push(osc);
+      time += dur;
+    });
+
+    const totalDur = (time - ctx.currentTime) * 1000;
+    const t = window.setTimeout(() => {
+      if (loopingRef.current) {
+        scheduleRiff(ctx);
+      } else {
+        setIsPlaying(false);
+      }
+    }, totalDur);
+    timeoutsRef.current.push(t);
+  }, [selectedRiff, speed]);
 
   const playRiff = useCallback(() => {
     stopPlaying();
@@ -120,45 +160,36 @@ export function RiffsAndScales() {
     }
     const ctx = ctxRef.current;
     if (ctx.state === 'suspended') ctx.resume();
+    loopingRef.current = loopEnabled;
     setIsPlaying(true);
 
-    const beatDur = (60 / selectedRiff.bpm) * (100 / speed);
-    let time = ctx.currentTime + 0.05;
-
-    selectedRiff.notes.forEach((note) => {
-      const freq = fretToFrequency(note.string, note.fret);
-      const dur = note.duration * beatDur;
-
+    // Count-in
+    const beatDur = 60 / selectedRiff.bpm;
+    for (let i = 0; i < 4; i++) {
+      const t = ctx.currentTime + i * beatDur;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, time);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(i === 0 ? 1500 : 1000, t);
+      gain.gain.setValueAtTime(0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.06);
+    }
 
-      // Envelope
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(0.2, time + 0.01);
-      gain.gain.setValueAtTime(0.2, time + dur * 0.7);
-      gain.gain.linearRampToValueAtTime(0, time + dur);
+    setCountIn(1);
+    for (let i = 1; i < 4; i++) {
+      const tt = window.setTimeout(() => setCountIn(i + 1), i * beatDur * 1000);
+      timeoutsRef.current.push(tt);
+    }
 
-      // Lowpass for warmth
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2000, time);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(time);
-      osc.stop(time + dur + 0.05);
-      oscsRef.current.push(osc);
-
-      time += dur;
-    });
-
-    const totalDur = (time - ctx.currentTime) * 1000;
-    const t = window.setTimeout(() => setIsPlaying(false), totalDur);
-    timeoutsRef.current.push(t);
-  }, [selectedRiff, speed, stopPlaying]);
+    const countInMs = 4 * beatDur * 1000;
+    const tt = window.setTimeout(() => {
+      setCountIn(-1);
+      scheduleRiff(ctx);
+    }, countInMs);
+    timeoutsRef.current.push(tt);
+  }, [selectedRiff, speed, stopPlaying, loopEnabled, scheduleRiff]);
 
   const playScale = useCallback(() => {
     stopPlaying();
