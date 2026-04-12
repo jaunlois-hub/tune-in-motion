@@ -229,21 +229,41 @@ export function CircleOfFifths() {
         </div>
       </div>
 
+      {/* Count-in overlay */}
+      {countIn > 0 && (
+        <div className="flex justify-center">
+          <div className="text-5xl font-display font-black text-primary animate-pulse">{countIn}</div>
+        </div>
+      )}
+
       {/* Chord progression display */}
       <div className="bg-secondary/30 rounded-xl border border-border p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground font-display">
             {selectedProgression.numerals.join(' → ')}
           </span>
-          <Button
-            size="sm"
-            variant={isPlayingProgression ? 'destructive' : 'default'}
-            onClick={isPlayingProgression ? stopProgression : playProgression}
-            className="gap-1.5"
-          >
-            {isPlayingProgression ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            {isPlayingProgression ? 'Stop' : 'Play'}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setLoopEnabled(!loopEnabled)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display transition-all border ${
+                loopEnabled
+                  ? 'bg-accent/20 border-accent text-accent'
+                  : 'border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Repeat className="w-3 h-3" />
+              Loop
+            </button>
+            <Button
+              size="sm"
+              variant={isPlayingProgression ? 'destructive' : 'default'}
+              onClick={isPlayingProgression ? stopProgression : playProgression}
+              className="gap-1.5"
+            >
+              {isPlayingProgression ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              {isPlayingProgression ? 'Stop' : 'Play'}
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 justify-center">
