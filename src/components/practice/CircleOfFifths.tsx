@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Play, Square, Volume2 } from 'lucide-react';
+import { Play, Square, Volume2, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,8 +14,11 @@ export function CircleOfFifths() {
   const [selectedProgression, setSelectedProgression] = useState<Progression>(PROGRESSIONS[0]);
   const [playingChordIdx, setPlayingChordIdx] = useState<number | null>(null);
   const [isPlayingProgression, setIsPlayingProgression] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [countIn, setCountIn] = useState(-1);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimeoutRef = useRef<number[]>([]);
+  const loopingRef = useRef(false);
 
   const rootNote = CIRCLE_OF_FIFTHS_MAJOR[selectedKey];
   const rootNoteNormalized = ENHARMONIC_MAP[rootNote] || rootNote;
@@ -51,34 +54,79 @@ export function CircleOfFifths() {
   }, []);
 
   const stopProgression = useCallback(() => {
+    loopingRef.current = false;
     playTimeoutRef.current.forEach(clearTimeout);
     playTimeoutRef.current = [];
     setIsPlayingProgression(false);
     setPlayingChordIdx(null);
+    setCountIn(-1);
   }, []);
 
-  const playProgression = useCallback(() => {
-    stopProgression();
-    setIsPlayingProgression(true);
-
+  const scheduleProgression = useCallback((startDelay: number) => {
     const prog = selectedProgression;
-    const beatDuration = 600; // ms per chord
+    const beatDuration = 600;
 
     prog.degrees.forEach((degree, i) => {
       const t = window.setTimeout(() => {
         setPlayingChordIdx(i);
         const freqs = getChordFrequencies(rootNoteNormalized, 3, degree, prog.quality[i]);
         playChord(freqs, beatDuration / 1000 * 0.9);
-      }, i * beatDuration);
+      }, startDelay + i * beatDuration);
       playTimeoutRef.current.push(t);
     });
 
+    const totalDur = prog.degrees.length * beatDuration;
     const endT = window.setTimeout(() => {
-      setIsPlayingProgression(false);
-      setPlayingChordIdx(null);
-    }, prog.degrees.length * beatDuration);
+      if (loopingRef.current) {
+        scheduleProgression(0);
+      } else {
+        setIsPlayingProgression(false);
+        setPlayingChordIdx(null);
+      }
+    }, startDelay + totalDur);
     playTimeoutRef.current.push(endT);
-  }, [selectedProgression, rootNoteNormalized, playChord, stopProgression]);
+  }, [selectedProgression, rootNoteNormalized, playChord]);
+
+  const playProgression = useCallback(() => {
+    stopProgression();
+    loopingRef.current = loopEnabled;
+    setIsPlayingProgression(true);
+
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    // 4-beat count-in
+    const clickDur = 0.06;
+    for (let i = 0; i < 4; i++) {
+      const t = ctx.currentTime + i * 0.5;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(i === 0 ? 1500 : 1000, t);
+      gain.gain.setValueAtTime(0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + clickDur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + clickDur);
+    }
+
+    // Visual count-in
+    setCountIn(1);
+    for (let i = 1; i < 4; i++) {
+      const t = window.setTimeout(() => setCountIn(i + 1), i * 500);
+      playTimeoutRef.current.push(t);
+    }
+
+    // Start after count-in
+    const countInMs = 4 * 500;
+    const t = window.setTimeout(() => {
+      setCountIn(-1);
+      scheduleProgression(0);
+    }, countInMs);
+    playTimeoutRef.current.push(t);
+  }, [selectedProgression, rootNoteNormalized, playChord, stopProgression, loopEnabled, scheduleProgression]);
 
   const chordNames = selectedProgression.degrees.map((d, i) =>
     getChordName(rootNoteNormalized, d, selectedProgression.quality[i])
