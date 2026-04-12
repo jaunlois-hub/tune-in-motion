@@ -305,8 +305,26 @@ export function RiffsAndScales() {
               <span className="text-xs font-mono text-primary w-10 text-right">{speed}%</span>
             </div>
 
-            {/* Play */}
-            <div className="flex justify-center">
+            {/* Count-in */}
+            {countIn > 0 && (
+              <div className="flex justify-center">
+                <div className="text-4xl font-display font-black text-primary animate-pulse">{countIn}</div>
+              </div>
+            )}
+
+            {/* Play controls */}
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={() => setLoopEnabled(!loopEnabled)}
+                className={`flex items-center gap-1 px-3 py-2 rounded-full text-xs font-display transition-all border ${
+                  loopEnabled
+                    ? 'bg-accent/20 border-accent text-accent'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Repeat className="w-3 h-3" />
+                Loop
+              </button>
               <Button
                 onClick={isPlaying ? stopPlaying : playRiff}
                 variant={isPlaying ? 'destructive' : 'default'}
