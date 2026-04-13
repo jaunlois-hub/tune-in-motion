@@ -6,45 +6,45 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 220 20% 15%;
+    --background: 40 20% 97%;
+    --foreground: 220 25% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 15%;
+    --card: 40 15% 100%;
+    --card-foreground: 220 25% 12%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 15%;
+    --popover: 40 15% 100%;
+    --popover-foreground: 220 25% 12%;
 
-    --primary: 170 80% 40%;
+    --primary: 350 85% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 10% 92%;
+    --secondary: 220 12% 91%;
     --secondary-foreground: 220 20% 20%;
 
-    --muted: 220 10% 94%;
+    --muted: 220 12% 93%;
     --muted-foreground: 220 10% 45%;
 
-    --accent: 170 80% 35%;
+    --accent: 25 95% 55%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 85% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 10% 85%;
-    --input: 220 10% 88%;
-    --ring: 170 80% 40%;
+    --border: 220 12% 84%;
+    --input: 220 12% 87%;
+    --ring: 350 85% 55%;
 
     --radius: 0.75rem;
 
     /* Custom tuner colors */
     --tuner-flat: 0 100% 55%;
     --tuner-sharp: 220 100% 60%;
-    --tuner-perfect: 120 80% 42%;
-    --tuner-glow: 170 80% 40%;
-    --tuner-strobe: 170 80% 50%;
+    --tuner-perfect: 140 75% 42%;
+    --tuner-glow: 350 85% 55%;
+    --tuner-strobe: 350 85% 60%;
 
     /* Gradients */
-    --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.3), transparent 70%);
+    --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.2), transparent 70%);
     --gradient-strobe: linear-gradient(90deg, 
       transparent 0%, 
       hsl(var(--tuner-strobe)) 10%, 
@@ -55,45 +55,45 @@
   }
 
   .dark {
-    --background: 220 20% 6%;
-    --foreground: 180 100% 95%;
+    --background: 240 15% 5%;
+    --foreground: 40 30% 95%;
 
-    --card: 220 20% 10%;
-    --card-foreground: 180 100% 95%;
+    --card: 240 15% 9%;
+    --card-foreground: 40 30% 95%;
 
-    --popover: 220 20% 8%;
-    --popover-foreground: 180 100% 95%;
+    --popover: 240 15% 7%;
+    --popover-foreground: 40 30% 95%;
 
-    --primary: 170 100% 50%;
-    --primary-foreground: 220 20% 6%;
+    --primary: 350 90% 58%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 15%;
-    --secondary-foreground: 180 100% 90%;
+    --secondary: 240 12% 14%;
+    --secondary-foreground: 40 20% 90%;
 
-    --muted: 220 15% 18%;
-    --muted-foreground: 180 20% 60%;
+    --muted: 240 12% 17%;
+    --muted-foreground: 40 10% 55%;
 
-    --accent: 170 100% 45%;
-    --accent-foreground: 220 20% 6%;
+    --accent: 25 100% 55%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 170 100% 50%;
+    --border: 240 12% 18%;
+    --input: 240 12% 16%;
+    --ring: 350 90% 58%;
 
     --radius: 0.75rem;
 
     /* Custom tuner colors */
     --tuner-flat: 0 100% 60%;
     --tuner-sharp: 220 100% 65%;
-    --tuner-perfect: 120 100% 50%;
-    --tuner-glow: 170 100% 50%;
-    --tuner-strobe: 170 100% 60%;
+    --tuner-perfect: 140 90% 48%;
+    --tuner-glow: 350 90% 58%;
+    --tuner-strobe: 350 90% 65%;
 
     /* Gradients */
-    --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.3), transparent 70%);
+    --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.25), transparent 70%);
     --gradient-strobe: linear-gradient(90deg, 
       transparent 0%, 
       hsl(var(--tuner-strobe)) 10%, 
