@@ -21,13 +21,13 @@ const scrollToSection = (id: string) => {
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-card">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-card/80">
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Zap className="w-7 h-7 text-destructive drop-shadow-[0_0_8px_rgba(255,100,100,0.6)]" />
+              <Zap className="w-7 h-7 text-primary drop-shadow-[0_0_8px_rgba(230,50,80,0.6)]" />
               <div>
                 <h1 className="font-display text-lg font-bold tracking-wider">
                   BLEED OUT ZONE
