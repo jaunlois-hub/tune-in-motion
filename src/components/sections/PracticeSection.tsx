@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Gauge, Activity, Music, Circle, Drum, Guitar, Mic2 } from 'lucide-react';
+import { Gauge, Activity, Music, Circle, Drum, Guitar, Mic2, TrendingUp } from 'lucide-react';
 import { MetronomeView } from '@/components/metronome/MetronomeView';
 import { SmartDrummer } from '@/components/SmartDrummer';
 import { ChordRecognitionView } from '@/components/studio/ChordRecognitionView';
@@ -7,8 +7,9 @@ import { CircleOfFifths } from '@/components/practice/CircleOfFifths';
 import { RhythmPatterns } from '@/components/practice/RhythmPatterns';
 import { RiffsAndScales } from '@/components/practice/RiffsAndScales';
 import { JamSession } from '@/components/practice/JamSession';
+import { SpeedTrainer } from '@/components/practice/SpeedTrainer';
 
-type PracticeTab = 'metronome' | 'drummer' | 'chords' | 'circle' | 'rhythms' | 'riffs' | 'jam';
+type PracticeTab = 'metronome' | 'drummer' | 'chords' | 'circle' | 'rhythms' | 'riffs' | 'jam' | 'speed';
 
 const TABS: { id: PracticeTab; label: string; icon: React.ElementType }[] = [
   { id: 'metronome', label: 'Metronome', icon: Gauge },
@@ -18,6 +19,7 @@ const TABS: { id: PracticeTab; label: string; icon: React.ElementType }[] = [
   { id: 'rhythms', label: 'Rhythms', icon: Drum },
   { id: 'riffs', label: 'Riffs & Scales', icon: Guitar },
   { id: 'jam', label: 'Jam Session', icon: Mic2 },
+  { id: 'speed', label: 'Speed Trainer', icon: TrendingUp },
 ];
 
 export function PracticeSection() {
@@ -50,6 +52,7 @@ export function PracticeSection() {
       {activeTab === 'rhythms' && <RhythmPatterns />}
       {activeTab === 'riffs' && <RiffsAndScales />}
       {activeTab === 'jam' && <JamSession />}
+      {activeTab === 'speed' && <SpeedTrainer />}
     </div>
   );
 }
