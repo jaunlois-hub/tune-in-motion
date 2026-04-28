@@ -246,7 +246,7 @@ export function StudioView() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, updateSettingsBulk, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
   const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
@@ -280,11 +280,11 @@ export function StudioView() {
   }, []);
 
   const applyPreset = (preset: TonePreset) => {
-    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+    updateSettingsBulk(preset.settings as Partial<EffectSettings>);
   };
 
   const applyCustomPreset = (preset: CustomPreset) => {
-    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+    updateSettingsBulk(preset.settings as Partial<EffectSettings>);
   };
 
   const handleSavePreset = (name: string, artist: string, song: string, genre: string) => {

@@ -6,6 +6,8 @@ import {
   RIFFS, SCALES, NOTE_NAMES, getScaleFretPositions,
   fretToFrequency, type Riff, type ScaleDefinition, type NoteName,
 } from '@/lib/musicTheory';
+import { SongsterrSearch } from './SongsterrSearch';
+import { YouTubeToTab } from './YouTubeToTab';
 
 type SubTab = 'riffs' | 'scales';
 
@@ -262,6 +264,9 @@ export function RiffsAndScales() {
 
       {subTab === 'riffs' && (
         <div className="space-y-4">
+          <YouTubeToTab />
+          <SongsterrSearch />
+
           {/* Riff selector */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
             {RIFFS.map((riff) => (

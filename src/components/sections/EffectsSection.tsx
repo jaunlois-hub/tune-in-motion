@@ -222,7 +222,7 @@ export function EffectsSection() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings, cabinetType, setCabinetType } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, updateSettingsBulk, resetSettings, cabinetType, setCabinetType } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
 
@@ -255,11 +255,11 @@ export function EffectsSection() {
   }, []);
 
   const applyPreset = (preset: TonePreset) => {
-    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+    updateSettingsBulk(preset.settings as Partial<EffectSettings>);
   };
 
   const applyCustomPreset = (preset: CustomPreset) => {
-    Object.entries(preset.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v));
+    updateSettingsBulk(preset.settings as Partial<EffectSettings>);
   };
 
   const handleSavePreset = (name: string, artist: string, song: string, genre: string) => {
@@ -317,7 +317,7 @@ export function EffectsSection() {
               {QUICK_PRESETS.map((qp) => (
                 <button
                   key={qp.name}
-                  onClick={() => Object.entries(qp.settings).forEach(([k, v]) => updateSetting(k as keyof EffectSettings, v as number))}
+                  onClick={() => updateSettingsBulk(qp.settings as Partial<EffectSettings>)}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-accent/20 text-accent-foreground hover:bg-accent/40 border border-accent/20 hover:border-primary/30 transition-all"
                 >
                   <span>{qp.emoji}</span>

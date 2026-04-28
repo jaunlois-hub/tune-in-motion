@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { create } from 'zustand';
 
 export interface EffectSettings {
   reverb: number;
@@ -37,35 +37,23 @@ const defaultSettings: EffectSettings = {
   octaver: 0, octaverMix: 0.5,
 };
 
-/**
- * Asymmetric tube-style soft-clip with even-order harmonics for warmth
- */
 function makeTubeDistortionCurve(amount: number): Float32Array {
   const samples = 8192;
   const curve = new Float32Array(samples);
-
   if (amount < 0.05) {
-    // Bypass: linear identity curve
-    for (let i = 0; i < samples; i++) {
-      curve[i] = (i * 2) / samples - 1;
-    }
+    for (let i = 0; i < samples; i++) curve[i] = (i * 2) / samples - 1;
     return curve;
   }
-
   const drive = 1 + amount * 6;
-  const bias = amount * 0.15; // Asymmetry for even harmonics (warmer)
-  const mix = Math.min(amount * 1.5, 1); // Wet/dry blend for low gain
-
+  const bias = amount * 0.15;
+  const mix = Math.min(amount * 1.5, 1);
   for (let i = 0; i < samples; i++) {
     const x = (i * 2) / samples - 1;
     const biased = x + bias;
-    // Stage 1: soft tanh clipping
     const stage1 = Math.tanh(biased * drive);
-    // Stage 2: second harmonic enrichment (asymmetric)
     const stage2 = Math.tanh(stage1 * (1 + amount * 2)) * 0.95;
-    // Blend dry/wet for subtle crunch at low settings
     const processed = stage2 * mix + x * (1 - mix);
-    curve[i] = processed * 0.85; // Headroom
+    curve[i] = processed * 0.85;
   }
   return curve;
 }
@@ -75,11 +63,8 @@ function createRealisticReverb(ctx: AudioContext, duration: number, decay: numbe
   const totalLen = sr * (duration + preDelay);
   const impulse = ctx.createBuffer(2, totalLen, sr);
   const preDelaySamples = Math.floor(sr * preDelay);
-
   for (let ch = 0; ch < 2; ch++) {
     const d = impulse.getChannelData(ch);
-
-    // Generate diffused noise
     for (let i = preDelaySamples; i < totalLen; i++) {
       const t = (i - preDelaySamples) / (totalLen - preDelaySamples);
       const earlyDecay = Math.exp(-t * decay * 3.5) * 0.5;
@@ -88,17 +73,11 @@ function createRealisticReverb(ctx: AudioContext, duration: number, decay: numbe
       const noise = Math.random() * 2 - 1;
       d[i] = noise * envelope;
     }
-
-    // Early reflections at realistic room intervals
     const reflections = [0.008, 0.013, 0.019, 0.023, 0.029, 0.037, 0.043, 0.051];
     for (const r of reflections) {
       const idx = preDelaySamples + Math.floor(sr * r);
-      if (idx < totalLen) {
-        d[idx] += (Math.random() > 0.5 ? 1 : -1) * 0.25 * Math.exp(-r * 8);
-      }
+      if (idx < totalLen) d[idx] += (Math.random() > 0.5 ? 1 : -1) * 0.25 * Math.exp(-r * 8);
     }
-
-    // Diffusion: smear short segments for smoother tail
     for (let pass = 0; pass < 3; pass++) {
       const segLen = Math.floor(sr * 0.004 * (pass + 1));
       for (let i = preDelaySamples + segLen; i < totalLen - segLen; i += segLen) {
@@ -110,18 +89,13 @@ function createRealisticReverb(ctx: AudioContext, duration: number, decay: numbe
         }
       }
     }
-
-    // Bandpass the impulse: cut <200Hz and >8kHz
-    // Simple FIR approximation via running average for low-cut
     const lowCutSamples = Math.floor(sr / 200);
     let runSum = 0;
     for (let i = preDelaySamples; i < totalLen; i++) {
       runSum += d[i];
-      if (i >= preDelaySamples + lowCutSamples) {
-        runSum -= d[i - lowCutSamples];
-      }
+      if (i >= preDelaySamples + lowCutSamples) runSum -= d[i - lowCutSamples];
       const avg = runSum / Math.min(i - preDelaySamples + 1, lowCutSamples);
-      d[i] = d[i] - avg * 0.7; // Subtract low-frequency content
+      d[i] = d[i] - avg * 0.7;
     }
   }
   return impulse;
@@ -141,55 +115,173 @@ const CAB_PARAMS: Record<CabinetType, { hp: number; hpQ: number; presFreq: numbe
   '4x12': { hp: 60, hpQ: 0.6, presFreq: 1600, presQ: 2.0, presGain: 4, lp: 3800, lpQ: 0.7 },
 };
 
-export function useGuitarEffects() {
-  const [isActive, setIsActive] = useState(false);
-  const [settings, setSettings] = useState<EffectSettings>(defaultSettings);
-  const [cabinetType, setCabinetType] = useState<CabinetType>('2x12');
-  const [error, setError] = useState<string | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const nodesRef = useRef<Record<string, AudioNode>>({});
-  const noiseGateRafRef = useRef<number>(0);
+interface EffectsState {
+  isActive: boolean;
+  settings: EffectSettings;
+  cabinetType: CabinetType;
+  error: string | null;
+  start: () => Promise<void>;
+  stop: () => void;
+  updateSetting: (key: keyof EffectSettings, value: number) => void;
+  updateSettingsBulk: (patch: Partial<EffectSettings>) => void;
+  resetSettings: () => void;
+  setCabinetType: (c: CabinetType) => void;
+}
 
-  const start = useCallback(async () => {
+// === Module-scoped audio engine state — exactly one instance app-wide ===
+let audioContext: AudioContext | null = null;
+let mediaStream: MediaStream | null = null;
+let nodes: Record<string, AudioNode> = {};
+let noiseGateRaf = 0;
+let isTransitioning = false;
+
+const MASTER_FADE_SEC = 0.06;
+const MASTER_FADE_MS = 80;
+const PARAM_TC = 0.05; // 50ms exponential time constant for parameter ramps
+
+function ramp(param: AudioParam, value: number, tc = PARAM_TC) {
+  const ctx = audioContext;
+  if (!ctx) return;
+  try {
+    param.setTargetAtTime(value, ctx.currentTime, tc);
+  } catch { /* AudioParam might be from a closed context */ }
+}
+
+function applyParamsToNodes(settings: EffectSettings, cabinetType: CabinetType) {
+  const ctx = audioContext;
+  const n = nodes;
+  if (!ctx || !n.limiter) return; // not yet built
+
+  // Distortion curve is discrete — swap it directly. The masterGain dip in transitions
+  // hides on/off pops; mid-session sweeps may have minor artefacts at very large jumps.
+  if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
+  if (n.preGain) ramp((n.preGain as GainNode).gain, settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6);
+  if (n.postDistTone) ramp((n.postDistTone as BiquadFilterNode).frequency, settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500);
+
+  if (n.delay) ramp((n.delay as DelayNode).delayTime, settings.delayTime);
+  if (n.delayGain) ramp((n.delayGain as GainNode).gain, settings.delay * 0.6);
+  if (n.reverbGain) ramp((n.reverbGain as GainNode).gain, settings.reverb * 0.7);
+  if (n.gain) ramp((n.gain as GainNode).gain, settings.gain);
+
+  if (n.compressor) {
+    ramp((n.compressor as DynamicsCompressorNode).threshold, -50 + settings.compressor * 40);
+    ramp((n.compressor as DynamicsCompressorNode).ratio, 2 + settings.compressor * 10);
+  }
+
+  if (n.eqBass) ramp((n.eqBass as BiquadFilterNode).gain, (settings.eqBass - 0.5) * 12);
+  if (n.eqMid) ramp((n.eqMid as BiquadFilterNode).gain, (settings.eqMid - 0.5) * 12);
+  if (n.eqTreble) ramp((n.eqTreble as BiquadFilterNode).gain, (settings.eqTreble - 0.5) * 12);
+
+  if (n.wah) {
+    ramp((n.wah as BiquadFilterNode).frequency, 200 + settings.wahFreq * 3800);
+    ramp((n.wah as BiquadFilterNode).Q, 2 + settings.wah * 10);
+  }
+  if (n.wahWet) ramp((n.wahWet as GainNode).gain, settings.wah);
+  if (n.wahDry) ramp((n.wahDry as GainNode).gain, 1 - settings.wah);
+
+  if (n.chorusWet) ramp((n.chorusWet as GainNode).gain, settings.chorus * 0.5);
+  if (n.chorusLfo) ramp((n.chorusLfo as OscillatorNode).frequency, settings.chorusRate);
+
+  if (n.flangerWet) ramp((n.flangerWet as GainNode).gain, settings.flanger);
+  if (n.flangerLfo) ramp((n.flangerLfo as OscillatorNode).frequency, settings.flangerRate);
+
+  if (n.phaserWet) ramp((n.phaserWet as GainNode).gain, settings.phaser);
+  if (n.phaserLfo) ramp((n.phaserLfo as OscillatorNode).frequency, settings.phaserRate);
+
+  if (n.tremoloLfoGain) ramp((n.tremoloLfoGain as GainNode).gain, settings.tremolo * 0.5);
+  if (n.tremoloLfo) ramp((n.tremoloLfo as OscillatorNode).frequency, settings.tremoloRate);
+
+  const cab = CAB_PARAMS[cabinetType];
+  if (n.cabHigh) {
+    ramp((n.cabHigh as BiquadFilterNode).frequency, cab.hp);
+    ramp((n.cabHigh as BiquadFilterNode).Q, cab.hpQ);
+  }
+  if (n.cabPresence) {
+    ramp((n.cabPresence as BiquadFilterNode).frequency, cab.presFreq);
+    ramp((n.cabPresence as BiquadFilterNode).Q, cab.presQ);
+    ramp((n.cabPresence as BiquadFilterNode).gain, cab.presGain);
+  }
+  if (n.cabLow) {
+    ramp((n.cabLow as BiquadFilterNode).frequency, cab.lp);
+    ramp((n.cabLow as BiquadFilterNode).Q, cab.lpQ);
+  }
+}
+
+function teardownImmediate() {
+  if (noiseGateRaf) cancelAnimationFrame(noiseGateRaf);
+  noiseGateRaf = 0;
+  ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo'].forEach((k) => {
+    try { (nodes[k] as OscillatorNode | undefined)?.stop(); } catch { /* ignore */ }
+  });
+  mediaStream?.getTracks().forEach((t) => t.stop());
+  mediaStream = null;
+  audioContext?.close().catch(() => { /* ignore */ });
+  audioContext = null;
+  nodes = {};
+}
+
+export const useGuitarEffects = create<EffectsState>((set, get) => ({
+  isActive: false,
+  settings: defaultSettings,
+  cabinetType: '2x12',
+  error: null,
+
+  updateSetting: (key, value) => {
+    set((s) => ({ settings: { ...s.settings, [key]: value } }));
+    if (get().isActive) applyParamsToNodes(get().settings, get().cabinetType);
+  },
+
+  updateSettingsBulk: (patch) => {
+    set((s) => ({ settings: { ...s.settings, ...patch } }));
+    if (get().isActive) applyParamsToNodes(get().settings, get().cabinetType);
+  },
+
+  resetSettings: () => {
+    set({ settings: defaultSettings });
+    if (get().isActive) applyParamsToNodes(defaultSettings, get().cabinetType);
+  },
+
+  setCabinetType: (c) => {
+    set({ cabinetType: c });
+    if (get().isActive) applyParamsToNodes(get().settings, c);
+  },
+
+  start: async () => {
+    if (isTransitioning || audioContext) return;
+    isTransitioning = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false }
+        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false },
       });
-      mediaStreamRef.current = stream;
+      mediaStream = stream;
       const ctx = new AudioContext({ sampleRate: 44100 });
-      audioContextRef.current = ctx;
+      audioContext = ctx;
       const source = ctx.createMediaStreamSource(stream);
-      const n = nodesRef.current;
+      const n: Record<string, AudioNode> = {};
+      const settings = get().settings;
+      const cabinetType = get().cabinetType;
 
       // === INPUT STAGE ===
-
-      // Noise gate gain node + analyser for real gating
       n.noiseGateGain = ctx.createGain();
       (n.noiseGateGain as GainNode).gain.value = 1;
       n.noiseGateAnalyser = ctx.createAnalyser();
       (n.noiseGateAnalyser as AnalyserNode).fftSize = 256;
       (n.noiseGateAnalyser as AnalyserNode).smoothingTimeConstant = 0.8;
 
-      // Compressor
       n.compressor = ctx.createDynamicsCompressor();
       const comp = n.compressor as DynamicsCompressorNode;
-      const compThresh = -50 + settings.compressor * 40;
-      comp.threshold.value = compThresh;
+      comp.threshold.value = -50 + settings.compressor * 40;
       comp.knee.value = 12;
       comp.ratio.value = 2 + settings.compressor * 10;
       comp.attack.value = 0.005;
       comp.release.value = 0.15;
 
       // === TONE SHAPING ===
-
-      // Pre-distortion highpass (cut mud)
       n.preDistFilter = ctx.createBiquadFilter();
       (n.preDistFilter as BiquadFilterNode).type = 'highpass';
       (n.preDistFilter as BiquadFilterNode).frequency.value = 80;
       (n.preDistFilter as BiquadFilterNode).Q.value = 0.7;
 
-      // EQ — 3-band (placed before distortion for tone shaping)
       n.eqBass = ctx.createBiquadFilter();
       (n.eqBass as BiquadFilterNode).type = 'lowshelf';
       (n.eqBass as BiquadFilterNode).frequency.value = 300;
@@ -211,17 +303,15 @@ export function useGuitarEffects() {
       (n.preGain as GainNode).gain.value = settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6;
 
       n.distortion = ctx.createWaveShaper();
-      (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
+      (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
       (n.distortion as WaveShaperNode).oversample = '4x';
 
-      // Post-distortion tone control
       n.postDistTone = ctx.createBiquadFilter();
       (n.postDistTone as BiquadFilterNode).type = 'lowpass';
-      const toneFreq = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
-      (n.postDistTone as BiquadFilterNode).frequency.value = toneFreq;
+      (n.postDistTone as BiquadFilterNode).frequency.value = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
       (n.postDistTone as BiquadFilterNode).Q.value = 0.8;
 
-      // === CABINET SIMULATION (3 cascaded filters) ===
+      // === CABINET ===
       const cab = CAB_PARAMS[cabinetType];
       n.cabHigh = ctx.createBiquadFilter();
       (n.cabHigh as BiquadFilterNode).type = 'highpass';
@@ -249,7 +339,6 @@ export function useGuitarEffects() {
       (n.wahDry as GainNode).gain.value = 1 - settings.wah;
       (n.wahWet as GainNode).gain.value = settings.wah;
 
-      // === MAIN GAIN ===
       n.gain = ctx.createGain();
       (n.gain as GainNode).gain.value = settings.gain;
 
@@ -304,7 +393,7 @@ export function useGuitarEffects() {
       n.flangerDry = ctx.createGain();
       (n.flangerDry as GainNode).gain.value = 1;
 
-      // === PHASER — 6-stage ===
+      // === PHASER 6-stage ===
       const phaserStages: BiquadFilterNode[] = [];
       const phaserFreqs = [200, 400, 800, 1200, 2000, 3200];
       for (let i = 0; i < 6; i++) {
@@ -321,7 +410,7 @@ export function useGuitarEffects() {
       n.phaserLfoGain = ctx.createGain();
       (n.phaserLfoGain as GainNode).gain.value = 800;
       (n.phaserLfo as OscillatorNode).connect(n.phaserLfoGain as GainNode);
-      phaserStages.forEach(s => (n.phaserLfoGain as GainNode).connect(s.frequency));
+      phaserStages.forEach((s) => (n.phaserLfoGain as GainNode).connect(s.frequency));
       (n.phaserLfo as OscillatorNode).start();
       n.phaserWet = ctx.createGain();
       (n.phaserWet as GainNode).gain.value = settings.phaser;
@@ -340,7 +429,7 @@ export function useGuitarEffects() {
       (n.tremoloLfoGain as GainNode).connect((n.tremoloGain as GainNode).gain);
       (n.tremoloLfo as OscillatorNode).start();
 
-      // === DELAY with filtered feedback ===
+      // === DELAY ===
       n.delay = ctx.createDelay(2);
       (n.delay as DelayNode).delayTime.value = settings.delayTime;
       n.delayGain = ctx.createGain();
@@ -360,7 +449,7 @@ export function useGuitarEffects() {
       n.dryGain = ctx.createGain();
       (n.dryGain as GainNode).gain.value = 1;
 
-      // === Output limiter ===
+      // === Output limiter + master gain (NEW) ===
       n.limiter = ctx.createDynamicsCompressor();
       const limiter = n.limiter as DynamicsCompressorNode;
       limiter.threshold.value = -3;
@@ -369,8 +458,10 @@ export function useGuitarEffects() {
       limiter.attack.value = 0.001;
       limiter.release.value = 0.05;
 
+      n.masterGain = ctx.createGain();
+      (n.masterGain as GainNode).gain.value = 0; // start muted; ramp up after wiring
+
       // === SIGNAL CHAIN ===
-      // source → noiseGateAnalyser (tap) → noiseGateGain → compressor → preDistFilter → EQ
       source.connect(n.noiseGateAnalyser);
       source.connect(n.noiseGateGain);
       (n.noiseGateGain as GainNode).connect(n.compressor);
@@ -379,7 +470,6 @@ export function useGuitarEffects() {
       (n.eqBass as BiquadFilterNode).connect(n.eqMid);
       (n.eqMid as BiquadFilterNode).connect(n.eqTreble);
 
-      // → preGain → distortion → postDistTone → cabinet sim
       (n.eqTreble as BiquadFilterNode).connect(n.preGain);
       (n.preGain as GainNode).connect(n.distortion);
       (n.distortion as WaveShaperNode).connect(n.postDistTone);
@@ -387,7 +477,6 @@ export function useGuitarEffects() {
       (n.cabHigh as BiquadFilterNode).connect(n.cabPresence);
       (n.cabPresence as BiquadFilterNode).connect(n.cabLow);
 
-      // → wah split/merge
       const postCab = n.cabLow;
       postCab.connect(n.wahWet as GainNode);
       (n.wahWet as GainNode).connect(n.wah);
@@ -397,10 +486,8 @@ export function useGuitarEffects() {
       (n.wah as BiquadFilterNode).connect(wahMerge);
       (n.wahDry as GainNode).connect(wahMerge);
 
-      // → gain
       wahMerge.connect(n.gain);
 
-      // → chorus (dual-voice)
       const postGain = n.gain;
       postGain.connect(n.chorusDelay as DelayNode);
       postGain.connect(chorusDelay2);
@@ -413,7 +500,6 @@ export function useGuitarEffects() {
       (n.chorusWet as GainNode).connect(chorusMerge);
       (n.chorusDry as GainNode).connect(chorusMerge);
 
-      // → flanger
       chorusMerge.connect(flangerDelay);
       flangerDelay.connect(n.flangerFeedback as GainNode);
       (n.flangerFeedback as GainNode).connect(flangerDelay);
@@ -425,7 +511,6 @@ export function useGuitarEffects() {
       (n.flangerWet as GainNode).connect(flangerMerge);
       (n.flangerDry as GainNode).connect(flangerMerge);
 
-      // → phaser (6-stage)
       flangerMerge.connect(phaserStages[0]);
       for (let i = 0; i < phaserStages.length - 1; i++) phaserStages[i].connect(phaserStages[i + 1]);
       phaserStages[phaserStages.length - 1].connect(n.phaserWet as GainNode);
@@ -436,10 +521,8 @@ export function useGuitarEffects() {
       (n.phaserWet as GainNode).connect(phaserMerge);
       (n.phaserDry as GainNode).connect(phaserMerge);
 
-      // → tremolo
       phaserMerge.connect(n.tremoloGain);
 
-      // → delay (with filtered feedback)
       (n.tremoloGain as GainNode).connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
@@ -448,145 +531,92 @@ export function useGuitarEffects() {
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
       (n.tremoloGain as GainNode).connect(n.dryGain as GainNode);
 
-      // → reverb → limiter → output
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
       (n.convolver as ConvolverNode).connect(n.reverbGain as GainNode);
       (n.dryGain as GainNode).connect(n.limiter as DynamicsCompressorNode);
       (n.reverbGain as GainNode).connect(n.limiter as DynamicsCompressorNode);
-      (n.limiter as DynamicsCompressorNode).connect(ctx.destination);
+      (n.limiter as DynamicsCompressorNode).connect(n.masterGain);
+      (n.masterGain as GainNode).connect(ctx.destination);
 
-      (nodesRef.current as any)._phaserStages = phaserStages;
+      (n as Record<string, unknown>)._phaserStages = phaserStages;
+      nodes = n;
 
-      // === NOISE GATE: rAF-based level monitoring ===
+      // === NOISE GATE rAF poll ===
       const analyserData = new Uint8Array((n.noiseGateAnalyser as AnalyserNode).frequencyBinCount);
       let gateOpen = true;
-
       const pollGate = () => {
-        if (!audioContextRef.current) return;
-        const analyser = nodesRef.current.noiseGateAnalyser as AnalyserNode | undefined;
-        const gateGain = nodesRef.current.noiseGateGain as GainNode | undefined;
+        if (!audioContext) return;
+        const analyser = nodes.noiseGateAnalyser as AnalyserNode | undefined;
+        const gateGain = nodes.noiseGateGain as GainNode | undefined;
         if (!analyser || !gateGain) return;
-
         analyser.getByteFrequencyData(analyserData);
         let sum = 0;
         for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
-        const avg = sum / analyserData.length / 255; // 0-1
-
-        // Threshold scales with noiseGate setting: 0 = disabled, 1 = aggressive
-        const currentSettings = settingsRef.current;
-        const threshold = currentSettings.noiseGate * 0.15; // max threshold ~0.15
-
+        const avg = sum / analyserData.length / 255;
+        const currentSettings = useGuitarEffects.getState().settings;
+        const threshold = currentSettings.noiseGate * 0.15;
         if (currentSettings.noiseGate < 0.05) {
-          // Gate disabled
           if (!gateOpen) {
-            gateGain.gain.setTargetAtTime(1, audioContextRef.current!.currentTime, 0.005);
+            gateGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.005);
             gateOpen = true;
           }
         } else if (avg > threshold) {
           if (!gateOpen) {
-            gateGain.gain.setTargetAtTime(1, audioContextRef.current!.currentTime, 0.005); // 5ms attack
+            gateGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.005);
             gateOpen = true;
           }
         } else {
           if (gateOpen) {
-            gateGain.gain.setTargetAtTime(0, audioContextRef.current!.currentTime, 0.05); // 50ms release
+            gateGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.05);
             gateOpen = false;
           }
         }
-
-        noiseGateRafRef.current = requestAnimationFrame(pollGate);
+        noiseGateRaf = requestAnimationFrame(pollGate);
       };
-      noiseGateRafRef.current = requestAnimationFrame(pollGate);
+      noiseGateRaf = requestAnimationFrame(pollGate);
 
-      setIsActive(true);
-      setError(null);
-    } catch { setError('Could not access microphone for effects processing'); }
-  }, [settings, cabinetType]);
+      // === Master gain fade-in ===
+      const t = ctx.currentTime;
+      (n.masterGain as GainNode).gain.cancelScheduledValues(t);
+      (n.masterGain as GainNode).gain.setValueAtTime(0, t);
+      (n.masterGain as GainNode).gain.linearRampToValueAtTime(1, t + MASTER_FADE_SEC);
 
-  // Keep a ref to settings for the noise gate rAF callback
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-
-  const stop = useCallback(() => {
-    if (noiseGateRafRef.current) cancelAnimationFrame(noiseGateRafRef.current);
-    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo'].forEach(k => {
-      try { (nodesRef.current[k] as OscillatorNode)?.stop(); } catch {}
-    });
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
-    mediaStreamRef.current = null;
-    audioContextRef.current?.close();
-    audioContextRef.current = null;
-    nodesRef.current = {};
-    setIsActive(false);
-  }, []);
-
-  useEffect(() => {
-    if (!isActive) return;
-    const n = nodesRef.current;
-    // Distortion
-    if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion) as Float32Array<ArrayBuffer>;
-    if (n.preGain) (n.preGain as GainNode).gain.value = settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6;
-    if (n.postDistTone) (n.postDistTone as BiquadFilterNode).frequency.value = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
-    // Delay
-    if (n.delay) (n.delay as DelayNode).delayTime.value = settings.delayTime;
-    if (n.delayGain) (n.delayGain as GainNode).gain.value = settings.delay * 0.6;
-    // Reverb
-    if (n.reverbGain) (n.reverbGain as GainNode).gain.value = settings.reverb * 0.7;
-    // Gain
-    if (n.gain) (n.gain as GainNode).gain.value = settings.gain;
-    // Compressor
-    if (n.compressor) {
-      const thresh = -50 + settings.compressor * 40;
-      (n.compressor as DynamicsCompressorNode).threshold.value = thresh;
-      (n.compressor as DynamicsCompressorNode).ratio.value = 2 + settings.compressor * 10;
+      set({ isActive: true, error: null });
+    } catch {
+      set({ error: 'Could not access microphone for effects processing' });
+      teardownImmediate();
+    } finally {
+      isTransitioning = false;
     }
-    // EQ (reduced range: ±6dB instead of ±10dB)
-    if (n.eqBass) (n.eqBass as BiquadFilterNode).gain.value = (settings.eqBass - 0.5) * 12;
-    if (n.eqMid) (n.eqMid as BiquadFilterNode).gain.value = (settings.eqMid - 0.5) * 12;
-    if (n.eqTreble) (n.eqTreble as BiquadFilterNode).gain.value = (settings.eqTreble - 0.5) * 12;
-    // Wah
-    if (n.wah) {
-      (n.wah as BiquadFilterNode).frequency.value = 200 + settings.wahFreq * 3800;
-      (n.wah as BiquadFilterNode).Q.value = 2 + settings.wah * 10;
-    }
-    if (n.wahWet) (n.wahWet as GainNode).gain.value = settings.wah;
-    if (n.wahDry) (n.wahDry as GainNode).gain.value = 1 - settings.wah;
-    // Chorus
-    if (n.chorusWet) (n.chorusWet as GainNode).gain.value = settings.chorus * 0.5;
-    if (n.chorusLfo) (n.chorusLfo as OscillatorNode).frequency.value = settings.chorusRate;
-    // Flanger
-    if (n.flangerWet) (n.flangerWet as GainNode).gain.value = settings.flanger;
-    if (n.flangerLfo) (n.flangerLfo as OscillatorNode).frequency.value = settings.flangerRate;
-    // Phaser
-    if (n.phaserWet) (n.phaserWet as GainNode).gain.value = settings.phaser;
-    if (n.phaserLfo) (n.phaserLfo as OscillatorNode).frequency.value = settings.phaserRate;
-    // Tremolo
-    if (n.tremoloLfoGain) (n.tremoloLfoGain as GainNode).gain.value = settings.tremolo * 0.5;
-    if (n.tremoloLfo) (n.tremoloLfo as OscillatorNode).frequency.value = settings.tremoloRate;
-    // Cabinet type
-    const cab = CAB_PARAMS[cabinetType];
-    if (n.cabHigh) {
-      (n.cabHigh as BiquadFilterNode).frequency.value = cab.hp;
-      (n.cabHigh as BiquadFilterNode).Q.value = cab.hpQ;
-    }
-    if (n.cabPresence) {
-      (n.cabPresence as BiquadFilterNode).frequency.value = cab.presFreq;
-      (n.cabPresence as BiquadFilterNode).Q.value = cab.presQ;
-      (n.cabPresence as BiquadFilterNode).gain.value = cab.presGain;
-    }
-    if (n.cabLow) {
-      (n.cabLow as BiquadFilterNode).frequency.value = cab.lp;
-      (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
-    }
-  }, [settings, isActive, cabinetType]);
+  },
 
-  const updateSetting = useCallback((key: keyof EffectSettings, value: number) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  stop: () => {
+    if (isTransitioning) return;
+    const ctx = audioContext;
+    const masterGain = nodes.masterGain as GainNode | undefined;
+    if (!ctx || !masterGain) {
+      teardownImmediate();
+      set({ isActive: false });
+      return;
+    }
+    isTransitioning = true;
+    const t = ctx.currentTime;
+    const cur = masterGain.gain.value;
+    masterGain.gain.cancelScheduledValues(t);
+    masterGain.gain.setValueAtTime(cur, t);
+    masterGain.gain.linearRampToValueAtTime(0, t + MASTER_FADE_SEC);
+    setTimeout(() => {
+      teardownImmediate();
+      set({ isActive: false });
+      isTransitioning = false;
+    }, MASTER_FADE_MS);
+  },
+}));
 
-  const resetSettings = useCallback(() => { setSettings(defaultSettings); }, []);
-
-  useEffect(() => { return () => { stop(); }; }, [stop]);
-
-  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType };
+// HMR cleanup — close the live engine when this module hot-reloads in dev
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    teardownImmediate();
+    isTransitioning = false;
+  });
 }
