@@ -346,8 +346,8 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geom.computeVertexNormals();
         return (
-          <mesh geometry={geom} position={[heelX, 0, bodyTopZ]}>
-            <meshStandardMaterial color="#7c2d12" roughness={0.55} />
+          <mesh geometry={geom} position={[heelX, 0, bodyTopZ]} castShadow>
+            <meshPhysicalMaterial color="#d8b07a" roughness={0.55} clearcoat={0.35} clearcoatRoughness={0.4} />
           </mesh>
         );
       })()}
