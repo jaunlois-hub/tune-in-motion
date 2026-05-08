@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Html, Line, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Html, Line, ContactShadows, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 // ============================================================
@@ -227,64 +227,92 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
 
   return (
     <group ref={groupRef}>
-      {/* Body */}
+      {/* Body — glossy lacquer with clearcoat for that Sketchfab photoreal look */}
       <mesh geometry={bodyGeom} castShadow receiveShadow position={[0, 0, -mm(SPEC.bodyThickness) / 2]}>
-        <meshStandardMaterial color={finish.body} metalness={finish.metalness} roughness={finish.roughness} envMapIntensity={0.7} />
+        <meshPhysicalMaterial
+          color={finish.body}
+          metalness={finish.metalness}
+          roughness={finish.roughness * 0.55}
+          clearcoat={1}
+          clearcoatRoughness={0.08}
+          reflectivity={0.6}
+          envMapIntensity={1.2}
+        />
       </mesh>
 
-      {/* Pickguard */}
+      {/* Pickguard — 3-ply look, slight gloss */}
       <mesh position={[pgCenterX, 0, bodyTopZ + mm(0.5)]} castShadow>
-        <boxGeometry args={[pgLen, pgWid, mm(2)]} />
-        <meshStandardMaterial color={finish.pickguard} metalness={0.05} roughness={0.35} />
+        <boxGeometry args={[pgLen, pgWid, mm(2.2)]} />
+        <meshPhysicalMaterial
+          color={finish.pickguard}
+          metalness={0.0}
+          roughness={0.25}
+          clearcoat={0.6}
+          clearcoatRoughness={0.2}
+          envMapIntensity={1}
+        />
       </mesh>
 
-      {/* Pickups */}
+      {/* Pickup covers — creamy white plastic with subtle gloss */}
       {[
         { distFromBridge: SPEC.pickupBridgeFromBridge, name: 'Bridge' },
         { distFromBridge: SPEC.pickupMiddleFromBridge, name: 'Middle' },
         { distFromBridge: SPEC.pickupNeckFromBridge, name: 'Neck' },
       ].map((p) => (
-        <mesh key={p.name} position={[px(p.distFromBridge), 0, bodyTopZ + mm(5)]}>
-          <boxGeometry args={[mm(SPEC.pickupWidth), mm(SPEC.pickupLength), mm(7)]} />
-          <meshStandardMaterial color="#0a0a0a" roughness={0.7} />
-        </mesh>
+        <group key={p.name} position={[px(p.distFromBridge), 0, bodyTopZ + mm(5)]}>
+          <mesh castShadow>
+            <boxGeometry args={[mm(SPEC.pickupWidth), mm(SPEC.pickupLength), mm(7)]} />
+            <meshPhysicalMaterial color="#f3ead3" roughness={0.4} clearcoat={0.4} clearcoatRoughness={0.3} />
+          </mesh>
+          {/* Pole pieces (6 magnets across the pickup length) */}
+          {Array.from({ length: 6 }, (_, k) => {
+            const y = -mm(SPEC.pickupLength) / 2 + mm(6) + (k * (mm(SPEC.pickupLength) - mm(12))) / 5;
+            return (
+              <mesh key={k} position={[0, y, mm(4)]}>
+                <cylinderGeometry args={[mm(2.4), mm(2.4), mm(2), 16]} />
+                <meshStandardMaterial color="#3a3530" metalness={0.85} roughness={0.35} />
+              </mesh>
+            );
+          })}
+        </group>
       ))}
 
-      {/* Bridge plate */}
-      <mesh position={[bridgeX, 0, bodyTopZ + mm(2.5)]}>
+      {/* Bridge plate (chromed) */}
+      <mesh position={[bridgeX, 0, bodyTopZ + mm(2.5)]} castShadow>
         <boxGeometry args={[mm(30), mm(SPEC.bridgeStringSpacing) + mm(15), mm(5)]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.85} roughness={0.25} />
+        <meshPhysicalMaterial color="#e5e7eb" metalness={1} roughness={0.18} clearcoat={0.6} clearcoatRoughness={0.1} envMapIntensity={1.4} />
       </mesh>
       {/* Saddles */}
       {Array.from({ length: SPEC.numStrings }, (_, i) => {
         const y = -mm(SPEC.bridgeStringSpacing) / 2 + (i * mm(SPEC.bridgeStringSpacing)) / (SPEC.numStrings - 1);
         return (
-          <mesh key={i} position={[bridgeX, y, bodyTopZ + mm(6)]}>
+          <mesh key={i} position={[bridgeX, y, bodyTopZ + mm(6)]} castShadow>
             <boxGeometry args={[mm(18), mm(5), mm(3)]} />
-            <meshStandardMaterial color="#d1d5db" metalness={0.95} roughness={0.15} />
+            <meshPhysicalMaterial color="#f1f5f9" metalness={1} roughness={0.12} clearcoat={0.7} clearcoatRoughness={0.08} envMapIntensity={1.5} />
           </mesh>
         );
       })}
 
-      {/* Volume + 2 Tone knobs (offset on pickguard) */}
+      {/* Volume + 2 Tone knobs (cream Strat-style) */}
       {[0, 1, 2].map((i) => (
-        <mesh key={i} position={[heelX - mm(180) + i * mm(25), -mm(70) - i * mm(8), bodyTopZ + mm(SPEC.knobHeight) / 2]}>
-          <cylinderGeometry args={[mm(SPEC.knobDiameter) / 2, mm(SPEC.knobDiameter) / 2, mm(SPEC.knobHeight), 32]} />
-          <meshStandardMaterial color="#fef3c7" roughness={0.4} />
+        <mesh key={i} position={[heelX - mm(180) + i * mm(25), -mm(70) - i * mm(8), bodyTopZ + mm(SPEC.knobHeight) / 2]} castShadow>
+          <cylinderGeometry args={[mm(SPEC.knobDiameter) / 2, mm(SPEC.knobDiameter) / 2 * 0.9, mm(SPEC.knobHeight), 32]} />
+          <meshPhysicalMaterial color="#f3ead3" roughness={0.3} clearcoat={0.5} clearcoatRoughness={0.2} />
         </mesh>
       ))}
 
       {/* 5-way pickup selector */}
-      <mesh position={[heelX - mm(220), -mm(40), bodyTopZ + mm(8)]} rotation={[0, 0, 0.5]}>
+      <mesh position={[heelX - mm(220), -mm(40), bodyTopZ + mm(8)]} rotation={[0, 0, 0.5]} castShadow>
         <cylinderGeometry args={[mm(2), mm(2), mm(22), 12]} />
-        <meshStandardMaterial color="#fef3c7" roughness={0.4} />
+        <meshPhysicalMaterial color="#f3ead3" roughness={0.3} clearcoat={0.5} clearcoatRoughness={0.2} />
       </mesh>
 
       {/* Output jack */}
-      <mesh position={[heelX - mm(150), -mm(SPEC.bodyWidth) / 2 + mm(15), bodyTopZ + mm(2)]}>
+      <mesh position={[heelX - mm(150), -mm(SPEC.bodyWidth) / 2 + mm(15), bodyTopZ + mm(2)]} castShadow>
         <cylinderGeometry args={[mm(9), mm(9), mm(8), 24]} />
-        <meshStandardMaterial color="#374151" metalness={0.8} roughness={0.3} />
+        <meshPhysicalMaterial color="#9ca3af" metalness={1} roughness={0.25} clearcoat={0.4} />
       </mesh>
+
 
       {/* Neck (tapered, with curved fretboard top showing radius) */}
       {(() => {
@@ -318,8 +346,8 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geom.computeVertexNormals();
         return (
-          <mesh geometry={geom} position={[heelX, 0, bodyTopZ]}>
-            <meshStandardMaterial color="#7c2d12" roughness={0.55} />
+          <mesh geometry={geom} position={[heelX, 0, bodyTopZ]} castShadow>
+            <meshPhysicalMaterial color="#d8b07a" roughness={0.55} clearcoat={0.35} clearcoatRoughness={0.4} />
           </mesh>
         );
       })()}
@@ -361,13 +389,13 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         geom.setIndex(indices);
         geom.computeVertexNormals();
         return (
-          <mesh geometry={geom}>
-            <meshStandardMaterial color="#3f1d0a" roughness={0.55} />
+          <mesh geometry={geom} castShadow>
+            <meshPhysicalMaterial color="#3a1d0a" roughness={0.6} clearcoat={0.5} clearcoatRoughness={0.35} envMapIntensity={0.9} />
           </mesh>
         );
       })()}
 
-      {/* Frets */}
+      {/* Frets — bright nickel-silver */}
       {Array.from({ length: SPEC.numFrets }, (_, i) => {
         const fretNum = i + 1;
         const distFromNut = SPEC.scaleLength * (1 - Math.pow(2, -fretNum / 12));
@@ -375,17 +403,17 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const t = (fretX - heelX) / (nutX - heelX); // 0 at heel, 1 at nut
         const halfW = mm(SPEC.neckWidthAt12Fret) / 2 * (1 - t) + mm(SPEC.nutWidth) / 2 * t;
         return (
-          <mesh key={i} position={[fretX, 0, fretboardTopZ + mm(0.8)]}>
+          <mesh key={i} position={[fretX, 0, fretboardTopZ + mm(0.8)]} castShadow>
             <boxGeometry args={[mm(1.3), halfW * 2, mm(1.2)]} />
-            <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.1} />
+            <meshPhysicalMaterial color="#e2e8f0" metalness={1} roughness={0.08} clearcoat={0.7} clearcoatRoughness={0.05} envMapIntensity={1.6} />
           </mesh>
         );
       })}
 
-      {/* Nut */}
-      <mesh position={[nutX, 0, fretboardTopZ + mm(2)]}>
+      {/* Nut — bone */}
+      <mesh position={[nutX, 0, fretboardTopZ + mm(2)]} castShadow>
         <boxGeometry args={[mm(4.5), mm(SPEC.nutWidth), mm(3.5)]} />
-        <meshStandardMaterial color="#f5f5dc" roughness={0.5} />
+        <meshPhysicalMaterial color="#f5f0dc" roughness={0.45} clearcoat={0.3} clearcoatRoughness={0.4} />
       </mesh>
 
       {/* Position dot inlays at frets 3, 5, 7, 9, 12 (double), 15, 17, 19, 21 */}
@@ -394,9 +422,9 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const dist0 = SPEC.scaleLength * (1 - Math.pow(2, -(n - 1) / 12));
         const midX = nutX - mm((dist + dist0) / 2);
         return (
-          <mesh key={n} position={[midX, 0, fretboardTopZ + mm(0.2)]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 16]} />
-            <meshStandardMaterial color="#fafafa" />
+          <mesh key={n} position={[midX, 0, fretboardTopZ + mm(0.25)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 24]} />
+            <meshPhysicalMaterial color="#fafafa" roughness={0.35} clearcoat={0.5} clearcoatRoughness={0.2} />
           </mesh>
         );
       })}
@@ -406,26 +434,35 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const dist0 = SPEC.scaleLength * (1 - Math.pow(2, -11 / 12));
         const midX = nutX - mm((dist + dist0) / 2);
         return (
-          <mesh key={y} position={[midX, y, fretboardTopZ + mm(0.2)]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 16]} />
-            <meshStandardMaterial color="#fafafa" />
+          <mesh key={y} position={[midX, y, fretboardTopZ + mm(0.25)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 24]} />
+            <meshPhysicalMaterial color="#fafafa" roughness={0.35} clearcoat={0.5} clearcoatRoughness={0.2} />
           </mesh>
         );
       })}
 
-      {/* Headstock */}
+      {/* Headstock — matched maple, slight back-tilt */}
       <group position={[nutX, 0, fretboardTopZ - mm(7)]} rotation={[0, -0.13, 0]}>
-        <mesh geometry={headstockGeom}>
-          <meshStandardMaterial color="#7c2d12" roughness={0.55} />
+        <mesh geometry={headstockGeom} castShadow>
+          <meshPhysicalMaterial color="#d8b07a" roughness={0.55} clearcoat={0.45} clearcoatRoughness={0.3} envMapIntensity={1} />
         </mesh>
-        {/* Tuning pegs (6 in-line) */}
+        {/* Tuning machines — bushing on top, post + button on the back-side */}
         {Array.from({ length: 6 }, (_, i) => (
-          <mesh key={i} position={[mm(25) + i * mm(22), -mm(8) + i * mm(2), mm(20)]}>
-            <cylinderGeometry args={[mm(4.5), mm(4.5), mm(15), 24]} />
-            <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.2} />
-          </mesh>
+          <group key={i} position={[mm(28) + i * mm(22), 0, mm(15)]}>
+            {/* Bushing on the face */}
+            <mesh castShadow>
+              <cylinderGeometry args={[mm(5), mm(5), mm(4), 24]} />
+              <meshPhysicalMaterial color="#e5e7eb" metalness={1} roughness={0.18} clearcoat={0.6} clearcoatRoughness={0.1} envMapIntensity={1.5} />
+            </mesh>
+            {/* Post */}
+            <mesh position={[0, 0, -mm(8)]} castShadow>
+              <cylinderGeometry args={[mm(3), mm(3), mm(14), 20]} />
+              <meshPhysicalMaterial color="#cbd5e1" metalness={1} roughness={0.22} clearcoat={0.5} envMapIntensity={1.4} />
+            </mesh>
+          </group>
         ))}
       </group>
+
 
       {/* Strings — each string traces from bridge saddle to nut, with action visible.
           String index: 0 = high E (treble, -Y), 5 = low E (bass, +Y). */}
@@ -681,17 +718,27 @@ export function StratAnatomy3D() {
         <span className="text-[11px] font-mono text-foreground/80 ml-1">{finish.name}</span>
       </div>
 
-      <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900 border border-border shadow-inner relative">
+      <div className="w-full aspect-[16/10] rounded-xl overflow-hidden bg-gradient-to-br from-zinc-900 via-neutral-900 to-stone-950 border border-border shadow-inner relative">
         {/* Subtle vignette overlay */}
-        <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.4)_100%)]" />
-        <Canvas shadows camera={{ position: [10, -25, 18], fov: 35 }} dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
-          {/* 3-point lighting setup */}
-          <ambientLight intensity={0.35} />
+        <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(0,0,0,0.55)_100%)]" />
+        <Canvas
+          shadows
+          camera={{ position: [14, -18, 14], fov: 30 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+        >
+          {/* HDRI environment for realistic reflections (drives the gloss/clearcoat) */}
+          <Suspense fallback={null}>
+            <Environment preset="studio" background={false} />
+          </Suspense>
+
+          {/* Soft fill */}
+          <ambientLight intensity={0.25} />
           {/* Key light — warm, top-front */}
           <directionalLight
-            position={[12, 18, 22]}
-            intensity={1.35}
-            color="#fff5e0"
+            position={[14, 16, 22]}
+            intensity={1.6}
+            color="#fff2d6"
             castShadow
             shadow-mapSize={[2048, 2048]}
             shadow-camera-near={1}
@@ -702,35 +749,34 @@ export function StratAnatomy3D() {
             shadow-camera-bottom={-25}
             shadow-bias={-0.0005}
           />
-          {/* Fill — cool, opposite side */}
-          <directionalLight position={[-18, -8, 10]} intensity={0.45} color="#9ec5ff" />
-          {/* Rim — back-light to separate from background */}
-          <directionalLight position={[0, 0, -20]} intensity={0.6} color="#c4b5fd" />
-          {/* Subtle hemispheric to keep shadows from going pure black */}
-          <hemisphereLight args={['#dbeafe', '#1e293b', 0.25]} />
+          {/* Fill */}
+          <directionalLight position={[-18, -10, 12]} intensity={0.55} color="#b8d4ff" />
+          {/* Rim */}
+          <directionalLight position={[-4, 8, -18]} intensity={0.7} color="#ddd6fe" />
+          <hemisphereLight args={['#e2e8f0', '#1c1917', 0.3]} />
 
           <Suspense fallback={null}>
             <Stratocaster showAnnotations={showAnnotations} showAction={showAction} finish={finish} />
             <AutoRotate enabled={autoRotate} />
             {/* Soft ground shadow */}
             <ContactShadows
-              position={[0, 0, -mm(SPEC.bodyThickness) / 2 - 0.1]}
-              opacity={0.45}
-              scale={50}
-              blur={2.4}
-              far={4}
-              resolution={512}
+              position={[0, 0, -mm(SPEC.bodyThickness) / 2 - 0.05]}
+              opacity={0.6}
+              scale={45}
+              blur={2.8}
+              far={5}
+              resolution={1024}
               rotation={[Math.PI / 2, 0, 0]}
               color="#000000"
             />
           </Suspense>
 
-          {/* Subtle grid floor — fades toward edges with a custom material */}
-          <mesh position={[0, 0, -2.5]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[30, 64]} />
-            <meshBasicMaterial color="#0f172a" transparent opacity={0.6} />
+          {/* Studio floor — soft dark, slightly glossy */}
+          <mesh position={[0, 0, -2.5]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+            <circleGeometry args={[40, 96]} />
+            <meshStandardMaterial color="#0a0a0a" roughness={0.85} metalness={0.1} />
           </mesh>
-          <gridHelper args={[40, 20, '#475569', '#1e293b']} position={[0, 0, -2.45]} rotation={[Math.PI / 2, 0, 0]} />
+
 
           <OrbitControls makeDefault autoRotate={autoRotate} autoRotateSpeed={0.8} enableDamping dampingFactor={0.08} minDistance={10} maxDistance={50} target={[0, 0, 0]} />
         </Canvas>
