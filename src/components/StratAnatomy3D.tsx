@@ -227,64 +227,92 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
 
   return (
     <group ref={groupRef}>
-      {/* Body */}
+      {/* Body — glossy lacquer with clearcoat for that Sketchfab photoreal look */}
       <mesh geometry={bodyGeom} castShadow receiveShadow position={[0, 0, -mm(SPEC.bodyThickness) / 2]}>
-        <meshStandardMaterial color={finish.body} metalness={finish.metalness} roughness={finish.roughness} envMapIntensity={0.7} />
+        <meshPhysicalMaterial
+          color={finish.body}
+          metalness={finish.metalness}
+          roughness={finish.roughness * 0.55}
+          clearcoat={1}
+          clearcoatRoughness={0.08}
+          reflectivity={0.6}
+          envMapIntensity={1.2}
+        />
       </mesh>
 
-      {/* Pickguard */}
+      {/* Pickguard — 3-ply look, slight gloss */}
       <mesh position={[pgCenterX, 0, bodyTopZ + mm(0.5)]} castShadow>
-        <boxGeometry args={[pgLen, pgWid, mm(2)]} />
-        <meshStandardMaterial color={finish.pickguard} metalness={0.05} roughness={0.35} />
+        <boxGeometry args={[pgLen, pgWid, mm(2.2)]} />
+        <meshPhysicalMaterial
+          color={finish.pickguard}
+          metalness={0.0}
+          roughness={0.25}
+          clearcoat={0.6}
+          clearcoatRoughness={0.2}
+          envMapIntensity={1}
+        />
       </mesh>
 
-      {/* Pickups */}
+      {/* Pickup covers — creamy white plastic with subtle gloss */}
       {[
         { distFromBridge: SPEC.pickupBridgeFromBridge, name: 'Bridge' },
         { distFromBridge: SPEC.pickupMiddleFromBridge, name: 'Middle' },
         { distFromBridge: SPEC.pickupNeckFromBridge, name: 'Neck' },
       ].map((p) => (
-        <mesh key={p.name} position={[px(p.distFromBridge), 0, bodyTopZ + mm(5)]}>
-          <boxGeometry args={[mm(SPEC.pickupWidth), mm(SPEC.pickupLength), mm(7)]} />
-          <meshStandardMaterial color="#0a0a0a" roughness={0.7} />
-        </mesh>
+        <group key={p.name} position={[px(p.distFromBridge), 0, bodyTopZ + mm(5)]}>
+          <mesh castShadow>
+            <boxGeometry args={[mm(SPEC.pickupWidth), mm(SPEC.pickupLength), mm(7)]} />
+            <meshPhysicalMaterial color="#f3ead3" roughness={0.4} clearcoat={0.4} clearcoatRoughness={0.3} />
+          </mesh>
+          {/* Pole pieces (6 magnets across the pickup length) */}
+          {Array.from({ length: 6 }, (_, k) => {
+            const y = -mm(SPEC.pickupLength) / 2 + mm(6) + (k * (mm(SPEC.pickupLength) - mm(12))) / 5;
+            return (
+              <mesh key={k} position={[0, y, mm(4)]}>
+                <cylinderGeometry args={[mm(2.4), mm(2.4), mm(2), 16]} />
+                <meshStandardMaterial color="#3a3530" metalness={0.85} roughness={0.35} />
+              </mesh>
+            );
+          })}
+        </group>
       ))}
 
-      {/* Bridge plate */}
-      <mesh position={[bridgeX, 0, bodyTopZ + mm(2.5)]}>
+      {/* Bridge plate (chromed) */}
+      <mesh position={[bridgeX, 0, bodyTopZ + mm(2.5)]} castShadow>
         <boxGeometry args={[mm(30), mm(SPEC.bridgeStringSpacing) + mm(15), mm(5)]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.85} roughness={0.25} />
+        <meshPhysicalMaterial color="#e5e7eb" metalness={1} roughness={0.18} clearcoat={0.6} clearcoatRoughness={0.1} envMapIntensity={1.4} />
       </mesh>
       {/* Saddles */}
       {Array.from({ length: SPEC.numStrings }, (_, i) => {
         const y = -mm(SPEC.bridgeStringSpacing) / 2 + (i * mm(SPEC.bridgeStringSpacing)) / (SPEC.numStrings - 1);
         return (
-          <mesh key={i} position={[bridgeX, y, bodyTopZ + mm(6)]}>
+          <mesh key={i} position={[bridgeX, y, bodyTopZ + mm(6)]} castShadow>
             <boxGeometry args={[mm(18), mm(5), mm(3)]} />
-            <meshStandardMaterial color="#d1d5db" metalness={0.95} roughness={0.15} />
+            <meshPhysicalMaterial color="#f1f5f9" metalness={1} roughness={0.12} clearcoat={0.7} clearcoatRoughness={0.08} envMapIntensity={1.5} />
           </mesh>
         );
       })}
 
-      {/* Volume + 2 Tone knobs (offset on pickguard) */}
+      {/* Volume + 2 Tone knobs (cream Strat-style) */}
       {[0, 1, 2].map((i) => (
-        <mesh key={i} position={[heelX - mm(180) + i * mm(25), -mm(70) - i * mm(8), bodyTopZ + mm(SPEC.knobHeight) / 2]}>
-          <cylinderGeometry args={[mm(SPEC.knobDiameter) / 2, mm(SPEC.knobDiameter) / 2, mm(SPEC.knobHeight), 32]} />
-          <meshStandardMaterial color="#fef3c7" roughness={0.4} />
+        <mesh key={i} position={[heelX - mm(180) + i * mm(25), -mm(70) - i * mm(8), bodyTopZ + mm(SPEC.knobHeight) / 2]} castShadow>
+          <cylinderGeometry args={[mm(SPEC.knobDiameter) / 2, mm(SPEC.knobDiameter) / 2 * 0.9, mm(SPEC.knobHeight), 32]} />
+          <meshPhysicalMaterial color="#f3ead3" roughness={0.3} clearcoat={0.5} clearcoatRoughness={0.2} />
         </mesh>
       ))}
 
       {/* 5-way pickup selector */}
-      <mesh position={[heelX - mm(220), -mm(40), bodyTopZ + mm(8)]} rotation={[0, 0, 0.5]}>
+      <mesh position={[heelX - mm(220), -mm(40), bodyTopZ + mm(8)]} rotation={[0, 0, 0.5]} castShadow>
         <cylinderGeometry args={[mm(2), mm(2), mm(22), 12]} />
-        <meshStandardMaterial color="#fef3c7" roughness={0.4} />
+        <meshPhysicalMaterial color="#f3ead3" roughness={0.3} clearcoat={0.5} clearcoatRoughness={0.2} />
       </mesh>
 
       {/* Output jack */}
-      <mesh position={[heelX - mm(150), -mm(SPEC.bodyWidth) / 2 + mm(15), bodyTopZ + mm(2)]}>
+      <mesh position={[heelX - mm(150), -mm(SPEC.bodyWidth) / 2 + mm(15), bodyTopZ + mm(2)]} castShadow>
         <cylinderGeometry args={[mm(9), mm(9), mm(8), 24]} />
-        <meshStandardMaterial color="#374151" metalness={0.8} roughness={0.3} />
+        <meshPhysicalMaterial color="#9ca3af" metalness={1} roughness={0.25} clearcoat={0.4} />
       </mesh>
+
 
       {/* Neck (tapered, with curved fretboard top showing radius) */}
       {(() => {
