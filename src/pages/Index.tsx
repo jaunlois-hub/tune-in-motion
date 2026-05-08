@@ -131,7 +131,10 @@ const Index = () => {
             title="Stratocaster Anatomy"
             caption="3D model • Scale length • Pickup positions"
           >
-            <StratAnatomy3D />
+            <div className="space-y-6">
+              <SketchfabStratViewer />
+              <StratAnatomy3D />
+            </div>
           </SectionCard>
         </SectionGroup>
 
