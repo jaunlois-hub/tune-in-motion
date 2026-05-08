@@ -718,17 +718,27 @@ export function StratAnatomy3D() {
         <span className="text-[11px] font-mono text-foreground/80 ml-1">{finish.name}</span>
       </div>
 
-      <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900 border border-border shadow-inner relative">
+      <div className="w-full aspect-[16/10] rounded-xl overflow-hidden bg-gradient-to-br from-zinc-900 via-neutral-900 to-stone-950 border border-border shadow-inner relative">
         {/* Subtle vignette overlay */}
-        <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.4)_100%)]" />
-        <Canvas shadows camera={{ position: [10, -25, 18], fov: 35 }} dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
-          {/* 3-point lighting setup */}
-          <ambientLight intensity={0.35} />
+        <div className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(0,0,0,0.55)_100%)]" />
+        <Canvas
+          shadows
+          camera={{ position: [14, -18, 14], fov: 30 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+        >
+          {/* HDRI environment for realistic reflections (drives the gloss/clearcoat) */}
+          <Suspense fallback={null}>
+            <Environment preset="studio" background={false} />
+          </Suspense>
+
+          {/* Soft fill */}
+          <ambientLight intensity={0.25} />
           {/* Key light — warm, top-front */}
           <directionalLight
-            position={[12, 18, 22]}
-            intensity={1.35}
-            color="#fff5e0"
+            position={[14, 16, 22]}
+            intensity={1.6}
+            color="#fff2d6"
             castShadow
             shadow-mapSize={[2048, 2048]}
             shadow-camera-near={1}
@@ -739,35 +749,34 @@ export function StratAnatomy3D() {
             shadow-camera-bottom={-25}
             shadow-bias={-0.0005}
           />
-          {/* Fill — cool, opposite side */}
-          <directionalLight position={[-18, -8, 10]} intensity={0.45} color="#9ec5ff" />
-          {/* Rim — back-light to separate from background */}
-          <directionalLight position={[0, 0, -20]} intensity={0.6} color="#c4b5fd" />
-          {/* Subtle hemispheric to keep shadows from going pure black */}
-          <hemisphereLight args={['#dbeafe', '#1e293b', 0.25]} />
+          {/* Fill */}
+          <directionalLight position={[-18, -10, 12]} intensity={0.55} color="#b8d4ff" />
+          {/* Rim */}
+          <directionalLight position={[-4, 8, -18]} intensity={0.7} color="#ddd6fe" />
+          <hemisphereLight args={['#e2e8f0', '#1c1917', 0.3]} />
 
           <Suspense fallback={null}>
             <Stratocaster showAnnotations={showAnnotations} showAction={showAction} finish={finish} />
             <AutoRotate enabled={autoRotate} />
             {/* Soft ground shadow */}
             <ContactShadows
-              position={[0, 0, -mm(SPEC.bodyThickness) / 2 - 0.1]}
-              opacity={0.45}
-              scale={50}
-              blur={2.4}
-              far={4}
-              resolution={512}
+              position={[0, 0, -mm(SPEC.bodyThickness) / 2 - 0.05]}
+              opacity={0.6}
+              scale={45}
+              blur={2.8}
+              far={5}
+              resolution={1024}
               rotation={[Math.PI / 2, 0, 0]}
               color="#000000"
             />
           </Suspense>
 
-          {/* Subtle grid floor — fades toward edges with a custom material */}
-          <mesh position={[0, 0, -2.5]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[30, 64]} />
-            <meshBasicMaterial color="#0f172a" transparent opacity={0.6} />
+          {/* Studio floor — soft dark, slightly glossy */}
+          <mesh position={[0, 0, -2.5]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+            <circleGeometry args={[40, 96]} />
+            <meshStandardMaterial color="#0a0a0a" roughness={0.85} metalness={0.1} />
           </mesh>
-          <gridHelper args={[40, 20, '#475569', '#1e293b']} position={[0, 0, -2.45]} rotation={[Math.PI / 2, 0, 0]} />
+
 
           <OrbitControls makeDefault autoRotate={autoRotate} autoRotateSpeed={0.8} enableDamping dampingFactor={0.08} minDistance={10} maxDistance={50} target={[0, 0, 0]} />
         </Canvas>
