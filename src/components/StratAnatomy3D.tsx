@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Html, Line, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Html, Line, ContactShadows, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 // ============================================================
