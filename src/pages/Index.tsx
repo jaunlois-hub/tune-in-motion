@@ -13,6 +13,7 @@ import { EffectsSection } from '@/components/sections/EffectsSection';
 import { RecordingSection } from '@/components/sections/RecordingSection';
 import { UtilitiesSection } from '@/components/sections/UtilitiesSection';
 import { StratAnatomy3D } from '@/components/StratAnatomy3D';
+import { SketchfabStratViewer } from '@/components/SketchfabStratViewer';
 import { IntervalTrainer } from '@/components/trainer/IntervalTrainer';
 import { ChordLibrary } from '@/components/trainer/ChordLibrary';
 import { SectionGroup } from '@/components/sections/SectionGroup';
