@@ -106,7 +106,7 @@ export function AudioDeviceSelector() {
           </SelectTrigger>
           <SelectContent className="bg-popover border-border max-h-72">
             <SelectItem value={DEFAULT_VALUE}>System default</SelectItem>
-            {inputs.map((d) => (
+            {inputs.filter((d) => d.deviceId).map((d) => (
               <SelectItem key={d.deviceId} value={d.deviceId}>
                 {labelFor(d, 'Microphone')}
               </SelectItem>
@@ -138,7 +138,7 @@ export function AudioDeviceSelector() {
           </SelectTrigger>
           <SelectContent className="bg-popover border-border max-h-72">
             <SelectItem value={DEFAULT_VALUE}>System default</SelectItem>
-            {outputs.map((d) => (
+            {outputs.filter((d) => d.deviceId).map((d) => (
               <SelectItem key={d.deviceId} value={d.deviceId}>
                 {labelFor(d, 'Speaker')}
               </SelectItem>
