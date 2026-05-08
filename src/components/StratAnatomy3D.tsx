@@ -389,13 +389,13 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         geom.setIndex(indices);
         geom.computeVertexNormals();
         return (
-          <mesh geometry={geom}>
-            <meshStandardMaterial color="#3f1d0a" roughness={0.55} />
+          <mesh geometry={geom} castShadow>
+            <meshPhysicalMaterial color="#3a1d0a" roughness={0.6} clearcoat={0.5} clearcoatRoughness={0.35} envMapIntensity={0.9} />
           </mesh>
         );
       })()}
 
-      {/* Frets */}
+      {/* Frets — bright nickel-silver */}
       {Array.from({ length: SPEC.numFrets }, (_, i) => {
         const fretNum = i + 1;
         const distFromNut = SPEC.scaleLength * (1 - Math.pow(2, -fretNum / 12));
@@ -403,17 +403,17 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const t = (fretX - heelX) / (nutX - heelX); // 0 at heel, 1 at nut
         const halfW = mm(SPEC.neckWidthAt12Fret) / 2 * (1 - t) + mm(SPEC.nutWidth) / 2 * t;
         return (
-          <mesh key={i} position={[fretX, 0, fretboardTopZ + mm(0.8)]}>
+          <mesh key={i} position={[fretX, 0, fretboardTopZ + mm(0.8)]} castShadow>
             <boxGeometry args={[mm(1.3), halfW * 2, mm(1.2)]} />
-            <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.1} />
+            <meshPhysicalMaterial color="#e2e8f0" metalness={1} roughness={0.08} clearcoat={0.7} clearcoatRoughness={0.05} envMapIntensity={1.6} />
           </mesh>
         );
       })}
 
-      {/* Nut */}
-      <mesh position={[nutX, 0, fretboardTopZ + mm(2)]}>
+      {/* Nut — bone */}
+      <mesh position={[nutX, 0, fretboardTopZ + mm(2)]} castShadow>
         <boxGeometry args={[mm(4.5), mm(SPEC.nutWidth), mm(3.5)]} />
-        <meshStandardMaterial color="#f5f5dc" roughness={0.5} />
+        <meshPhysicalMaterial color="#f5f0dc" roughness={0.45} clearcoat={0.3} clearcoatRoughness={0.4} />
       </mesh>
 
       {/* Position dot inlays at frets 3, 5, 7, 9, 12 (double), 15, 17, 19, 21 */}
@@ -422,9 +422,9 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const dist0 = SPEC.scaleLength * (1 - Math.pow(2, -(n - 1) / 12));
         const midX = nutX - mm((dist + dist0) / 2);
         return (
-          <mesh key={n} position={[midX, 0, fretboardTopZ + mm(0.2)]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 16]} />
-            <meshStandardMaterial color="#fafafa" />
+          <mesh key={n} position={[midX, 0, fretboardTopZ + mm(0.25)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 24]} />
+            <meshPhysicalMaterial color="#fafafa" roughness={0.35} clearcoat={0.5} clearcoatRoughness={0.2} />
           </mesh>
         );
       })}
@@ -434,26 +434,35 @@ function Stratocaster({ showAnnotations, showAction, finish }: { showAnnotations
         const dist0 = SPEC.scaleLength * (1 - Math.pow(2, -11 / 12));
         const midX = nutX - mm((dist + dist0) / 2);
         return (
-          <mesh key={y} position={[midX, y, fretboardTopZ + mm(0.2)]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 16]} />
-            <meshStandardMaterial color="#fafafa" />
+          <mesh key={y} position={[midX, y, fretboardTopZ + mm(0.25)]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[mm(2.5), mm(2.5), mm(0.5), 24]} />
+            <meshPhysicalMaterial color="#fafafa" roughness={0.35} clearcoat={0.5} clearcoatRoughness={0.2} />
           </mesh>
         );
       })}
 
-      {/* Headstock */}
+      {/* Headstock — matched maple, slight back-tilt */}
       <group position={[nutX, 0, fretboardTopZ - mm(7)]} rotation={[0, -0.13, 0]}>
-        <mesh geometry={headstockGeom}>
-          <meshStandardMaterial color="#7c2d12" roughness={0.55} />
+        <mesh geometry={headstockGeom} castShadow>
+          <meshPhysicalMaterial color="#d8b07a" roughness={0.55} clearcoat={0.45} clearcoatRoughness={0.3} envMapIntensity={1} />
         </mesh>
-        {/* Tuning pegs (6 in-line) */}
+        {/* Tuning machines — bushing on top, post + button on the back-side */}
         {Array.from({ length: 6 }, (_, i) => (
-          <mesh key={i} position={[mm(25) + i * mm(22), -mm(8) + i * mm(2), mm(20)]}>
-            <cylinderGeometry args={[mm(4.5), mm(4.5), mm(15), 24]} />
-            <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.2} />
-          </mesh>
+          <group key={i} position={[mm(28) + i * mm(22), 0, mm(15)]}>
+            {/* Bushing on the face */}
+            <mesh castShadow>
+              <cylinderGeometry args={[mm(5), mm(5), mm(4), 24]} />
+              <meshPhysicalMaterial color="#e5e7eb" metalness={1} roughness={0.18} clearcoat={0.6} clearcoatRoughness={0.1} envMapIntensity={1.5} />
+            </mesh>
+            {/* Post */}
+            <mesh position={[0, 0, -mm(8)]} castShadow>
+              <cylinderGeometry args={[mm(3), mm(3), mm(14), 20]} />
+              <meshPhysicalMaterial color="#cbd5e1" metalness={1} roughness={0.22} clearcoat={0.5} envMapIntensity={1.4} />
+            </mesh>
+          </group>
         ))}
       </group>
+
 
       {/* Strings — each string traces from bridge saddle to nut, with action visible.
           String index: 0 = high E (treble, -Y), 5 = low E (bass, +Y). */}
