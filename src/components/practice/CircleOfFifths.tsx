@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Play, Square, Volume2, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import {
   type Progression,
 } from '@/lib/musicTheory';
 import { ChordDiagram } from '@/components/studio/ChordDiagram';
+import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
 export function CircleOfFifths() {
   const [selectedKey, setSelectedKey] = useState(0); // index into circle
@@ -19,6 +21,21 @@ export function CircleOfFifths() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimeoutRef = useRef<number[]>([]);
   const loopingRef = useRef(false);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
+
+  const ensureCtxRegistered = useCallback(() => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContext();
+      releaseCtxRef.current?.();
+      releaseMasterRef.current?.();
+      releaseCtxRef.current = registerAudioContext(audioCtxRef.current);
+      const { master, release } = createMasterGain(audioCtxRef.current);
+      masterRef.current = master;
+      releaseMasterRef.current = release;
+    }
+  }, []);
 
   const rootNote = CIRCLE_OF_FIFTHS_MAJOR[selectedKey];
   const rootNoteNormalized = ENHARMONIC_MAP[rootNote] || rootNote;
@@ -27,16 +44,14 @@ export function CircleOfFifths() {
   const subdominant = CIRCLE_OF_FIFTHS_MAJOR[(selectedKey + 11) % 12]; // prev = subdominant
 
   const playChord = useCallback((frequencies: number[], duration = 0.8) => {
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
-    }
-    const ctx = audioCtxRef.current;
+    ensureCtxRegistered();
+    const ctx = audioCtxRef.current!;
     if (ctx.state === 'suspended') ctx.resume();
 
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0.15, ctx.currentTime);
     masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
-    masterGain.connect(ctx.destination);
+    masterGain.connect(masterRef.current ?? ctx.destination);
 
     frequencies.forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -51,7 +66,7 @@ export function CircleOfFifths() {
       osc.start(ctx.currentTime + i * 0.04);
       osc.stop(ctx.currentTime + duration + 0.1);
     });
-  }, []);
+  }, [ensureCtxRegistered]);
 
   const stopProgression = useCallback(() => {
     loopingRef.current = false;
@@ -92,10 +107,8 @@ export function CircleOfFifths() {
     loopingRef.current = loopEnabled;
     setIsPlayingProgression(true);
 
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
-    }
-    const ctx = audioCtxRef.current;
+    ensureCtxRegistered();
+    const ctx = audioCtxRef.current!;
     if (ctx.state === 'suspended') ctx.resume();
 
     // 4-beat count-in
@@ -108,7 +121,7 @@ export function CircleOfFifths() {
       osc.frequency.setValueAtTime(i === 0 ? 1500 : 1000, t);
       gain.gain.setValueAtTime(0.4, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + clickDur);
-      osc.connect(gain); gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(masterRef.current ?? ctx.destination);
       osc.start(t); osc.stop(t + clickDur);
     }
 
@@ -126,7 +139,20 @@ export function CircleOfFifths() {
       scheduleProgression(0);
     }, countInMs);
     playTimeoutRef.current.push(t);
-  }, [selectedProgression, rootNoteNormalized, playChord, stopProgression, loopEnabled, scheduleProgression]);
+  }, [selectedProgression, rootNoteNormalized, playChord, stopProgression, loopEnabled, scheduleProgression, ensureCtxRegistered]);
+
+  useEffect(() => () => {
+    loopingRef.current = false;
+    playTimeoutRef.current.forEach(clearTimeout);
+    playTimeoutRef.current = [];
+    releaseMasterRef.current?.();
+    releaseCtxRef.current?.();
+    masterRef.current = null;
+    releaseMasterRef.current = null;
+    releaseCtxRef.current = null;
+    audioCtxRef.current?.close().catch(() => { /* ignore */ });
+    audioCtxRef.current = null;
+  }, []);
 
   const chordNames = selectedProgression.degrees.map((d, i) =>
     getChordName(rootNoteNormalized, d, selectedProgression.quality[i])

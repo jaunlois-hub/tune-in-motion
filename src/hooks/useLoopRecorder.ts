@@ -99,7 +99,26 @@ export function useLoopRecorder() {
     URL.revokeObjectURL(url);
   }, [loops]);
 
-  useEffect(() => { return () => { if (timerRef.current) clearInterval(timerRef.current); audioElementsRef.current.forEach((a) => a.pause()); }; }, []);
+  // Snapshot audio elements at effect creation so the cleanup doesn't read a
+  // stale ref (React Hooks lint rule). Also stop the mic stream + recorder if
+  // the component unmounts while recording, otherwise the mic LED stays on.
+  useEffect(() => {
+    const audios = audioElementsRef.current;
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      audios.forEach((a) => a.pause());
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch { /* recorder already stopped */ }
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    };
+  }, []);
 
   return { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop };
 }

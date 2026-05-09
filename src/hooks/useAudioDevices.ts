@@ -96,6 +96,31 @@ export async function applyOutputSink(ctx: AudioContext): Promise<void> {
   }
 }
 
+// Live AudioContexts so the selected output device is reapplied when the user
+// switches speakers mid-session. Without this, every hook would have to
+// subscribe to outputDeviceId individually (and most don't).
+const liveContexts = new Set<AudioContext>();
+
+/**
+ * Register an AudioContext for output-device tracking. Applies the current
+ * sink immediately and reapplies it whenever the user changes output device.
+ * Returns an unregister function — call it on stop()/unmount.
+ */
+export function registerAudioContext(ctx: AudioContext): () => void {
+  liveContexts.add(ctx);
+  applyOutputSink(ctx);
+  return () => { liveContexts.delete(ctx); };
+}
+
+let lastOutputId = useAudioDevicesStore.getState().outputDeviceId;
+useAudioDevicesStore.subscribe((state) => {
+  if (state.outputDeviceId === lastOutputId) return;
+  lastOutputId = state.outputDeviceId;
+  for (const ctx of liveContexts) {
+    if (ctx.state !== 'closed') applyOutputSink(ctx);
+  }
+});
+
 export const audioDeviceSupport = {
   setSinkId: supportsSetSinkId,
 };

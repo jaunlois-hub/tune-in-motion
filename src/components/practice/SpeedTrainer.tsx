@@ -6,6 +6,8 @@ import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { RIFFS, fretToFrequency, type Riff } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
+import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
 export function SpeedTrainer() {
   const [selectedRiff, setSelectedRiff] = useState<Riff>(RIFFS[0]);
@@ -26,6 +28,9 @@ export function SpeedTrainer() {
   const runningRef = useRef(false);
   const bpmRef = useRef(startBpm);
   const repRef = useRef(0);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
 
   const progress = targetBpm > startBpm
     ? Math.min(100, ((currentBpm - startBpm) / (targetBpm - startBpm)) * 100)
@@ -56,7 +61,7 @@ export function SpeedTrainer() {
     click.frequency.setValueAtTime(1500, time);
     clickGain.gain.setValueAtTime(0.3, time);
     clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.04);
-    click.connect(clickGain); clickGain.connect(ctx.destination);
+    click.connect(clickGain); clickGain.connect(masterRef.current ?? ctx.destination);
     click.start(time); click.stop(time + 0.04);
 
     const buffer = pluckBufferRef.current;
@@ -99,7 +104,7 @@ export function SpeedTrainer() {
           victoryOsc.frequency.setValueAtTime(784, ctx.currentTime + 0.3);
           vGain.gain.setValueAtTime(0.3, ctx.currentTime);
           vGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-          victoryOsc.connect(vGain); vGain.connect(ctx.destination);
+          victoryOsc.connect(vGain); vGain.connect(masterRef.current ?? ctx.destination);
           victoryOsc.start(ctx.currentTime); victoryOsc.stop(ctx.currentTime + 0.5);
           return;
         }
@@ -113,7 +118,7 @@ export function SpeedTrainer() {
         chime.frequency.setValueAtTime(880, ctx.currentTime);
         cGain.gain.setValueAtTime(0.2, ctx.currentTime);
         cGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        chime.connect(cGain); cGain.connect(ctx.destination);
+        chime.connect(cGain); cGain.connect(masterRef.current ?? ctx.destination);
         chime.start(ctx.currentTime); chime.stop(ctx.currentTime + 0.15);
       }
 
@@ -127,6 +132,10 @@ export function SpeedTrainer() {
     setCompleted(false);
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
       ctxRef.current = new AudioContext();
+      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      const { master, release } = createMasterGain(ctxRef.current);
+      masterRef.current = master;
+      releaseMasterRef.current = release;
     }
     const ctx = ctxRef.current;
     if (ctx.state === 'suspended') await ctx.resume();
@@ -151,7 +160,7 @@ export function SpeedTrainer() {
       osc.frequency.setValueAtTime(i === 0 ? 1500 : 1000, t);
       gain.gain.setValueAtTime(0.4, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.06);
-      osc.connect(gain); gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(masterRef.current ?? ctx.destination);
       osc.start(t); osc.stop(t + 0.06);
     }
 
@@ -168,7 +177,16 @@ export function SpeedTrainer() {
     setCompleted(false);
   }, [stop, startBpm]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => () => {
+    stop();
+    releaseMasterRef.current?.();
+    releaseCtxRef.current?.();
+    masterRef.current = null;
+    releaseMasterRef.current = null;
+    releaseCtxRef.current = null;
+    ctxRef.current?.close().catch(() => { /* ignore */ });
+    ctxRef.current = null;
+  }, [stop]);
 
   return (
     <div className="space-y-5">

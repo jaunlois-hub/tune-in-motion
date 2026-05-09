@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { applyOutputSink, buildAudioConstraints } from './useAudioDevices';
+import { buildAudioConstraints, registerAudioContext } from './useAudioDevices';
+import { createMasterGain } from './useMasterVolume';
 
 export interface EffectSettings {
   reverb: number;
@@ -171,6 +172,9 @@ export function useGuitarEffects() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nodesRef = useRef<Record<string, AudioNode>>({});
   const noiseGateRafRef = useRef<number>(0);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   // Cabinet IR buffers, populated at start() if files exist in public/ir/cab/
   const cabBuffersRef = useRef<Partial<Record<CabinetType, AudioBuffer>>>({});
 
@@ -180,7 +184,13 @@ export function useGuitarEffects() {
       mediaStreamRef.current = stream;
       const ctx = new AudioContext({ sampleRate: 44100 });
       audioContextRef.current = ctx;
-      applyOutputSink(ctx);
+      releaseCtxRef.current = registerAudioContext(ctx);
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
+      const { master, release: releaseMaster } = createMasterGain(ctx);
+      masterGainRef.current = master;
+      releaseMasterRef.current = releaseMaster;
 
       // Load IRs (best-effort — falls back to biquads/synthetic if any are missing)
       const tryLoad = async (path: string): Promise<AudioBuffer | null> => {
@@ -559,7 +569,7 @@ export function useGuitarEffects() {
       (n.convolver as ConvolverNode).connect(n.reverbGain as GainNode);
       (n.dryGain as GainNode).connect(n.limiter as DynamicsCompressorNode);
       (n.reverbGain as GainNode).connect(n.limiter as DynamicsCompressorNode);
-      (n.limiter as DynamicsCompressorNode).connect(ctx.destination);
+      (n.limiter as DynamicsCompressorNode).connect(masterGainRef.current ?? ctx.destination);
 
       (nodesRef.current as Record<string, unknown>)._phaserStages = phaserStages;
 
@@ -620,7 +630,12 @@ export function useGuitarEffects() {
     });
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
-    audioContextRef.current?.close();
+    releaseMasterRef.current?.();
+    releaseCtxRef.current?.();
+    releaseMasterRef.current = null;
+    releaseCtxRef.current = null;
+    masterGainRef.current = null;
+    audioContextRef.current?.close().catch((err) => console.warn('AudioContext close failed', err));
     audioContextRef.current = null;
     nodesRef.current = {};
     setIsActive(false);

@@ -1,12 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { applyOutputSink } from './useAudioDevices';
+import { registerAudioContext } from './useAudioDevices';
 import { useAudioDucking } from './useAudioDucking';
+import { createMasterGain } from './useMasterVolume';
 
 export function useReferenceTone() {
   const [playingFrequency, setPlayingFrequency] = useState<number | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
   const durationTimeoutRef = useRef<number | null>(null);
   const duckActiveRef = useRef(false);
 
@@ -24,8 +28,12 @@ export function useReferenceTone() {
 
   const getContext = useCallback(() => {
     if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-      audioContextRef.current = new AudioContext();
-      applyOutputSink(audioContextRef.current);
+      const ctx = new AudioContext();
+      audioContextRef.current = ctx;
+      releaseCtxRef.current = registerAudioContext(ctx);
+      const { master, release } = createMasterGain(ctx);
+      masterGainRef.current = master;
+      releaseMasterRef.current = release;
     }
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().catch((err) => console.warn('AudioContext resume failed', err));
@@ -64,7 +72,7 @@ export function useReferenceTone() {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-    gain.connect(ctx.destination);
+    gain.connect(masterGainRef.current ?? ctx.destination);
     gainNodeRef.current = gain;
 
     const osc = ctx.createOscillator();
@@ -95,7 +103,7 @@ export function useReferenceTone() {
     gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
     gain.gain.setValueAtTime(0.3, ctx.currentTime + durSec - 0.05);
     gain.gain.linearRampToValueAtTime(0, ctx.currentTime + durSec);
-    gain.connect(ctx.destination);
+    gain.connect(masterGainRef.current ?? ctx.destination);
     gainNodeRef.current = gain;
 
     const osc = ctx.createOscillator();
@@ -126,7 +134,27 @@ export function useReferenceTone() {
   }, [playingFrequency, play, stop]);
 
   // If unmounted while ducking, release the ducking handle.
-  useEffect(() => () => popDuck(), [popDuck]);
+  // Also tear down the AudioContext so we don't leak one per session
+  // (browsers cap concurrent contexts and silently fail past the limit).
+  useEffect(() => () => {
+    popDuck();
+    if (durationTimeoutRef.current) {
+      clearTimeout(durationTimeoutRef.current);
+      durationTimeoutRef.current = null;
+    }
+    try { oscillatorRef.current?.stop(); } catch { /* already stopped */ }
+    oscillatorRef.current = null;
+    gainNodeRef.current = null;
+    releaseMasterRef.current?.();
+    releaseCtxRef.current?.();
+    releaseMasterRef.current = null;
+    releaseCtxRef.current = null;
+    masterGainRef.current = null;
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
+    }
+    audioContextRef.current = null;
+  }, [popDuck]);
 
   return { playingFrequency, toggle, stop, playForDuration };
 }

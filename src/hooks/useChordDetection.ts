@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { buildAudioConstraints } from './useAudioDevices';
+import { buildAudioConstraints, registerAudioContext, useAudioDevicesStore } from './useAudioDevices';
 
 // Chord templates: each chord is defined by its chroma profile (12 pitch classes C through B)
 // 1 = note present, 0 = note absent
@@ -174,6 +174,7 @@ export function useChordDetection() {
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const historyRef = useRef<string[]>([]);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
 
   const analyze = useCallback(() => {
     if (!analyserRef.current || !audioContextRef.current) return;
@@ -225,6 +226,10 @@ export function useChordDetection() {
 
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
+      releaseCtxRef.current = registerAudioContext(ctx);
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 8192;
@@ -246,7 +251,9 @@ export function useChordDetection() {
     animFrameRef.current = null;
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
-    audioContextRef.current?.close();
+    releaseCtxRef.current?.();
+    releaseCtxRef.current = null;
+    audioContextRef.current?.close().catch((err) => console.warn('AudioContext close failed', err));
     audioContextRef.current = null;
     analyserRef.current = null;
     historyRef.current = [];
@@ -255,6 +262,21 @@ export function useChordDetection() {
   }, []);
 
   useEffect(() => () => { stopListening(); }, [stopListening]);
+
+  // Restart on input device change while listening, mirroring usePitchDetection.
+  const inputDeviceId = useAudioDevicesStore((s) => s.inputDeviceId);
+  const lastDeviceRef = useRef(inputDeviceId);
+  useEffect(() => {
+    if (!isListening) {
+      lastDeviceRef.current = inputDeviceId;
+      return;
+    }
+    if (lastDeviceRef.current === inputDeviceId) return;
+    lastDeviceRef.current = inputDeviceId;
+    stopListening();
+    const t = setTimeout(() => startListening(), 50);
+    return () => clearTimeout(t);
+  }, [inputDeviceId, isListening, startListening, stopListening]);
 
   return { isListening, chordData, error, startListening, stopListening };
 }

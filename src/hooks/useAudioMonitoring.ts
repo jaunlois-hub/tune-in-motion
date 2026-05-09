@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { applyOutputSink, buildAudioConstraints, useAudioDevicesStore } from './useAudioDevices';
+import { buildAudioConstraints, registerAudioContext, useAudioDevicesStore } from './useAudioDevices';
 import { useAudioDucking } from './useAudioDucking';
 import { useTunerPrefs } from './useTunerPrefs';
+import { createMasterGain } from './useMasterVolume';
 
 export function useAudioMonitoring() {
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -11,16 +12,27 @@ export function useAudioMonitoring() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
   const muteFactorRef = useRef(1);
   const monitorVolumeRef = useRef(monitorVolume);
+
+  // Smoothly ramp the per-monitor gain (separate from the master gain) so
+  // slider drags don't zipper.
+  const rampGain = useCallback((target: number) => {
+    const gain = gainNodeRef.current;
+    const ctx = audioContextRef.current;
+    if (!gain || !ctx || ctx.state === 'closed') return;
+    const now = ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setTargetAtTime(target, now, 0.02);
+  }, []);
 
   // Keep latest volume in a ref so duck/unduck and start can reach it without re-creating callbacks.
   useEffect(() => {
     monitorVolumeRef.current = monitorVolume;
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = monitorVolume * muteFactorRef.current;
-    }
-  }, [monitorVolume]);
+    rampGain(monitorVolume * muteFactorRef.current);
+  }, [monitorVolume, rampGain]);
 
   const startMonitoring = useCallback(async () => {
     try {
@@ -29,7 +41,10 @@ export function useAudioMonitoring() {
 
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
-      applyOutputSink(ctx);
+      releaseCtxRef.current = registerAudioContext(ctx);
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const source = ctx.createMediaStreamSource(stream);
       sourceRef.current = source;
@@ -38,8 +53,11 @@ export function useAudioMonitoring() {
       gain.gain.value = monitorVolumeRef.current * muteFactorRef.current;
       gainNodeRef.current = gain;
 
+      const { master, release: releaseMaster } = createMasterGain(ctx);
+      releaseMasterRef.current = releaseMaster;
+
       source.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(master);
 
       setIsMonitoring(true);
     } catch (err) {
@@ -51,11 +69,15 @@ export function useAudioMonitoring() {
     sourceRef.current?.disconnect();
     gainNodeRef.current?.disconnect();
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    releaseMasterRef.current?.();
+    releaseCtxRef.current?.();
     audioContextRef.current?.close().catch((err) => console.warn('AudioContext close failed', err));
     sourceRef.current = null;
     gainNodeRef.current = null;
     streamRef.current = null;
     audioContextRef.current = null;
+    releaseMasterRef.current = null;
+    releaseCtxRef.current = null;
     setIsMonitoring(false);
   }, []);
 
@@ -72,10 +94,8 @@ export function useAudioMonitoring() {
    */
   const setDuck = useCallback((duckedFactor: number) => {
     muteFactorRef.current = duckedFactor;
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = monitorVolumeRef.current * duckedFactor;
-    }
-  }, []);
+    rampGain(monitorVolumeRef.current * duckedFactor);
+  }, [rampGain]);
 
   // Duck the monitor while a reference tone (or other shared output source) is playing,
   // so feedback through the speakers doesn't fool the YIN detector.

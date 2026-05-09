@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, Play, RotateCcw, Eye, EyeOff, Flame, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
 // Intervals
@@ -204,11 +206,25 @@ export function IntervalTrainer() {
 
   const ctxRef = useRef<AudioContext | null>(null);
   const bufRef = useRef<AudioBuffer | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
 
   // Restore best streak
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) setBestStreak(Number(stored) || 0);
+  }, []);
+
+  // Unmount cleanup: unregister and close ctx
+  useEffect(() => () => {
+    releaseMasterRef.current?.();
+    releaseMasterRef.current = null;
+    masterRef.current = null;
+    releaseCtxRef.current?.();
+    releaseCtxRef.current = null;
+    ctxRef.current?.close().catch(() => { /* ignore */ });
+    ctxRef.current = null;
   }, []);
 
   const intervalPool = useMemo(() => {
@@ -219,21 +235,28 @@ export function IntervalTrainer() {
 
   const playInterval = useCallback(
     async (a: FretPos, b: FretPos, dir: Direction) => {
-      if (!ctxRef.current || ctxRef.current.state === 'closed') ctxRef.current = new AudioContext();
+      if (!ctxRef.current || ctxRef.current.state === 'closed') {
+        ctxRef.current = new AudioContext();
+        releaseCtxRef.current = registerAudioContext(ctxRef.current);
+        const { master, release } = createMasterGain(ctxRef.current);
+        masterRef.current = master;
+        releaseMasterRef.current = release;
+      }
       const ctx = ctxRef.current;
       if (ctx.state === 'suspended') await ctx.resume();
       if (!bufRef.current) bufRef.current = await ensurePluckBuffer(ctx);
       const buf = bufRef.current;
       const t0 = ctx.currentTime + 0.05;
+      const dest = masterRef.current ?? ctx.destination;
       if (dir === 'harm') {
-        playPluckedNote(ctx, buf, a.freq, t0, 1.2, 0.65);
-        playPluckedNote(ctx, buf, b.freq, t0, 1.2, 0.65);
+        playPluckedNote(ctx, buf, a.freq, t0, 1.2, 0.65, dest);
+        playPluckedNote(ctx, buf, b.freq, t0, 1.2, 0.65, dest);
       } else if (dir === 'asc') {
-        playPluckedNote(ctx, buf, a.freq, t0, 0.6, 0.7);
-        playPluckedNote(ctx, buf, b.freq, t0 + 0.6, 1.0, 0.7);
+        playPluckedNote(ctx, buf, a.freq, t0, 0.6, 0.7, dest);
+        playPluckedNote(ctx, buf, b.freq, t0 + 0.6, 1.0, 0.7, dest);
       } else {
-        playPluckedNote(ctx, buf, b.freq, t0, 0.6, 0.7);
-        playPluckedNote(ctx, buf, a.freq, t0 + 0.6, 1.0, 0.7);
+        playPluckedNote(ctx, buf, b.freq, t0, 0.6, 0.7, dest);
+        playPluckedNote(ctx, buf, a.freq, t0 + 0.6, 1.0, 0.7, dest);
       }
     },
     [],

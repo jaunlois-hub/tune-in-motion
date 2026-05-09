@@ -8,6 +8,8 @@ import {
   fretToFrequency, type Riff, type ScaleDefinition, type NoteName,
 } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
+import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
 type SubTab = 'riffs' | 'scales';
 
@@ -113,6 +115,9 @@ export function RiffsAndScales() {
   const masterGainRef = useRef<GainNode | null>(null);
   const reverbRef = useRef<ConvolverNode | null>(null);
   const pluckBufferRef = useRef<AudioBuffer | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const outMasterRef = useRef<GainNode | null>(null);
+  const releaseOutMasterRef = useRef<(() => void) | null>(null);
 
   const stopPlaying = useCallback(() => {
     loopingRef.current = false;
@@ -129,6 +134,10 @@ export function RiffsAndScales() {
   const ensureAudioGraph = useCallback(async () => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
       ctxRef.current = new AudioContext();
+      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      const { master, release } = createMasterGain(ctxRef.current);
+      outMasterRef.current = master;
+      releaseOutMasterRef.current = release;
     }
     const ctx = ctxRef.current;
     if (ctx.state === 'suspended') await ctx.resume();
@@ -156,10 +165,10 @@ export function RiffsAndScales() {
       const wetGain = ctx.createGain();
       wetGain.gain.value = 0.18;
 
-      master.connect(ctx.destination);
+      master.connect(outMasterRef.current ?? ctx.destination);
       master.connect(conv);
       conv.connect(wetGain);
-      wetGain.connect(ctx.destination);
+      wetGain.connect(outMasterRef.current ?? ctx.destination);
     }
 
     if (!pluckBufferRef.current) {
@@ -216,7 +225,7 @@ export function RiffsAndScales() {
       osc.frequency.setValueAtTime(i === 0 ? 1800 : 1200, t);
       gain.gain.setValueAtTime(0.35, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-      osc.connect(gain); gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(outMasterRef.current ?? ctx.destination);
       osc.start(t); osc.stop(t + 0.05);
       auxOscsRef.current.push(osc);
     }
@@ -268,7 +277,18 @@ export function RiffsAndScales() {
     timeoutsRef.current.push(t);
   }, [rootNote, selectedScale, stopPlaying, ensureAudioGraph]);
 
-  useEffect(() => () => stopPlaying(), [stopPlaying]);
+  useEffect(() => () => {
+    stopPlaying();
+    releaseOutMasterRef.current?.();
+    releaseCtxRef.current?.();
+    outMasterRef.current = null;
+    releaseOutMasterRef.current = null;
+    releaseCtxRef.current = null;
+    masterGainRef.current = null;
+    reverbRef.current = null;
+    ctxRef.current?.close().catch(() => { /* ignore */ });
+    ctxRef.current = null;
+  }, [stopPlaying]);
 
   const difficultyColor = (d: string) =>
     d === 'Easy' ? 'text-green-500' : d === 'Medium' ? 'text-yellow-500' : 'text-red-500';

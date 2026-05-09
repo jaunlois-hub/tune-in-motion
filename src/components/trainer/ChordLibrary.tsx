@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { ChordDiagram } from '@/components/studio/ChordDiagram';
 import { CHORD_DIAGRAMS } from '@/hooks/useChordDetection';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
 // Chord families
@@ -350,19 +352,39 @@ export function ChordLibrary() {
   const [selected, setSelected] = useState<string | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const bufRef = useRef<AudioBuffer | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
 
   const playChord = useCallback(async (name: string) => {
     const freqs = frequenciesForChord(name);
     if (freqs.length === 0) return;
-    if (!ctxRef.current || ctxRef.current.state === 'closed') ctxRef.current = new AudioContext();
+    if (!ctxRef.current || ctxRef.current.state === 'closed') {
+      ctxRef.current = new AudioContext();
+      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      const { master, release } = createMasterGain(ctxRef.current);
+      masterRef.current = master;
+      releaseMasterRef.current = release;
+    }
     const ctx = ctxRef.current;
     if (ctx.state === 'suspended') await ctx.resume();
     if (!bufRef.current) bufRef.current = await ensurePluckBuffer(ctx);
     const buf = bufRef.current;
+    const dest = masterRef.current ?? ctx.destination;
     // Strum: ~25ms between strings, low to high
     freqs.forEach((f, i) => {
-      playPluckedNote(ctx, buf, f, ctx.currentTime + 0.05 + i * 0.025, 1.6, 0.6);
+      playPluckedNote(ctx, buf, f, ctx.currentTime + 0.05 + i * 0.025, 1.6, 0.6, dest);
     });
+  }, []);
+
+  useEffect(() => () => {
+    releaseMasterRef.current?.();
+    releaseMasterRef.current = null;
+    masterRef.current = null;
+    releaseCtxRef.current?.();
+    releaseCtxRef.current = null;
+    ctxRef.current?.close().catch(() => { /* ignore */ });
+    ctxRef.current = null;
   }, []);
 
   return (

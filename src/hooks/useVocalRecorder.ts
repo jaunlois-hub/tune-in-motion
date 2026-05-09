@@ -783,9 +783,12 @@ export function useVocalRecorder() {
   }, [recordings]);
 
   useEffect(() => {
+    // Snapshot the audio elements ref so the cleanup runs against the same
+    // map that was current when the effect mounted (React Hooks linter rule).
+    const audios = audioElsRef.current;
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      audioElsRef.current.forEach(a => a.pause());
+      audios.forEach(a => a.pause());
       teardownMicAndChain();
     };
   }, [teardownMicAndChain]);

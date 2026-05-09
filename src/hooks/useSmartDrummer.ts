@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useBpmSync } from './useBpmSync';
-import { applyOutputSink, buildAudioConstraints } from './useAudioDevices';
+import { buildAudioConstraints, registerAudioContext } from './useAudioDevices';
 
 export type DrumGenre = 'ballad' | 'blues' | 'rock' | 'punk' | 'metal' | 'blast';
 
@@ -43,6 +43,7 @@ export function useSmartDrummer() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
 
   // Onset detection state
   const prevEnergyRef = useRef(0);
@@ -150,7 +151,10 @@ export function useSmartDrummer() {
 
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
-      applyOutputSink(ctx);
+      releaseCtxRef.current = registerAudioContext(ctx);
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
@@ -185,8 +189,10 @@ export function useSmartDrummer() {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    releaseCtxRef.current?.();
+    releaseCtxRef.current = null;
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
       audioContextRef.current = null;
     }
     analyserRef.current = null;

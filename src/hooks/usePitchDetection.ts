@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  applyOutputSink,
   buildAudioConstraints,
+  registerAudioContext,
   useAudioDevicesStore,
 } from './useAudioDevices';
 
@@ -121,6 +121,7 @@ export function usePitchDetection() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
   const historyRef = useRef<number[]>([]);
   const emaRef = useRef<number | null>(null);
   const lastNoteRef = useRef<string | null>(null);
@@ -218,7 +219,12 @@ export function usePitchDetection() {
 
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
-      applyOutputSink(audioContext);
+      releaseCtxRef.current = registerAudioContext(audioContext);
+      // Chrome creates AudioContexts in 'suspended' state until a user gesture.
+      // Without resume() the analyser yields zeros and the tuner stays blank.
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 8192;
@@ -247,8 +253,12 @@ export function usePitchDetection() {
       streamRef.current = null;
     }
 
+    if (releaseCtxRef.current) {
+      releaseCtxRef.current();
+      releaseCtxRef.current = null;
+    }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
       audioContextRef.current = null;
     }
 

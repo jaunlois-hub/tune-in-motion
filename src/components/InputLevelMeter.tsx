@@ -43,6 +43,11 @@ export function InputLevelMeter() {
         streamRef.current = stream;
         const ctx = new AudioContext();
         ctxRef.current = ctx;
+        // Without resume(), Chrome leaves the context suspended and the
+        // analyser's getFloatTimeDomainData returns zeros — meter shows 0.
+        if (ctx.state === 'suspended') {
+          await ctx.resume().catch((err) => console.warn('meter ctx resume', err));
+        }
         const src = ctx.createMediaStreamSource(stream);
         analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
