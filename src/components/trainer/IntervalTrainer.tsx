@@ -420,10 +420,22 @@ export function IntervalTrainer() {
       {/* Audio replay */}
       {target && (
         <div className="flex justify-center gap-2">
-          <Button onClick={() => playInterval(target.a, target.b, target.dir)} size="sm" className="gap-2">
-            <Volume2 className="w-4 h-4" /> Replay
+          <Button
+            onClick={() => {
+              userStartedRef.current = true;
+              playInterval(target.a, target.b, target.dir);
+            }}
+            size="sm"
+            className="gap-2"
+          >
+            <Volume2 className="w-4 h-4" /> {userStartedRef.current ? 'Replay' : 'Play'}
           </Button>
-          <Button variant="outline" onClick={newQuestion} size="sm" className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => { userStartedRef.current = true; newQuestion(); }}
+            size="sm"
+            className="gap-2"
+          >
             <Play className="w-4 h-4" /> Skip / Next
           </Button>
         </div>
