@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, RotateCcw, Flame, Trophy, BookOpen, GraduationCap, Eye, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChordDiagram } from '@/components/studio/ChordDiagram';
 import { CHORD_DIAGRAMS } from '@/hooks/useChordDetection';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -352,7 +352,6 @@ export function ChordLibrary() {
   const [selected, setSelected] = useState<string | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
   const bufRef = useRef<AudioBuffer | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
 
@@ -360,8 +359,7 @@ export function ChordLibrary() {
     const freqs = frequenciesForChord(name);
     if (freqs.length === 0) return;
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      ctxRef.current = getSharedAudioContextSync();
       const { master, release } = createMasterGain(ctxRef.current);
       masterRef.current = master;
       releaseMasterRef.current = release;
@@ -381,9 +379,6 @@ export function ChordLibrary() {
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
-    releaseCtxRef.current?.();
-    releaseCtxRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, []);
 

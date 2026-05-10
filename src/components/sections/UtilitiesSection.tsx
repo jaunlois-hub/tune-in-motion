@@ -1,11 +1,11 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeftRight, Brain, Music, Layers, Ear, Scale, Play, Square, RotateCcw, Check, X, Volume2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { NOTE_NAMES, type NoteName } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -59,15 +59,12 @@ function freqOfNote(noteName: string, octave: number): number {
 function useAudioPlayback() {
   const ctxRef = useRef<AudioContext | null>(null);
   const bufRef = useRef<AudioBuffer | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
 
   const ensureCtx = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-      releaseCtxRef.current?.();
-      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      ctxRef.current = getSharedAudioContextSync();
       releaseMasterRef.current?.();
       const { master, release } = createMasterGain(ctxRef.current);
       masterRef.current = master;
@@ -107,9 +104,6 @@ function useAudioPlayback() {
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
-    releaseCtxRef.current?.();
-    releaseCtxRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, []);
 

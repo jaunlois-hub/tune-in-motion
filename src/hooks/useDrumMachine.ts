@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useMasterVolume } from './useMasterVolume';
 import { useBpmSync } from './useBpmSync';
-import { registerAudioContext } from './useAudioDevices';
-
 // 16-step patterns: [kick[], snare[], hihat[], openHat[], tom[], rimshot[]]
 // Velocity values: 0 = off, 0.1-1.0 = velocity
 export interface DrumPattern {
@@ -409,7 +408,6 @@ export function useDrumMachine() {
   const timerIdRef = useRef<number | null>(null);
   const currentStepRef = useRef(0);
   const swingRef = useRef(swing);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const effectiveVolume = localVolume * masterVolume;
 
   // Keep refs in sync so scheduler always reads latest values
@@ -475,9 +473,8 @@ export function useDrumMachine() {
 
   const start = useCallback(async () => {
     if (!audioContextRef.current) {
-      const ctx = new AudioContext();
+      const ctx = getSharedAudioContextSync();
       audioContextRef.current = ctx;
-      releaseCtxRef.current = registerAudioContext(ctx);
     }
     if (audioContextRef.current.state === 'suspended') {
       await audioContextRef.current.resume().catch((err) => console.warn('AudioContext resume failed', err));
@@ -503,12 +500,7 @@ export function useDrumMachine() {
     return () => {
       isPlayingRef.current = false;
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
-      releaseCtxRef.current?.();
-      releaseCtxRef.current = null;
       compressorRef.current = null;
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-      }
       audioContextRef.current = null;
     };
   }, []);

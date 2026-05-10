@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useBpmSync } from './useBpmSync';
-import { registerAudioContext } from './useAudioDevices';
 import { createMasterGain } from './useMasterVolume';
 
 export function useMetronome() {
@@ -14,7 +14,6 @@ export function useMetronome() {
   const currentBeatRef = useRef(0);
   const timerIdRef = useRef<number | null>(null);
   const tapTimesRef = useRef<number[]>([]);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
 
@@ -46,9 +45,8 @@ export function useMetronome() {
 
   const start = useCallback(() => {
     if (!audioContextRef.current) {
-      const ctx = new AudioContext();
+      const ctx = getSharedAudioContextSync();
       audioContextRef.current = ctx;
-      releaseCtxRef.current = registerAudioContext(ctx);
       const { master, release: releaseMaster } = createMasterGain(ctx);
       masterGainRef.current = master;
       releaseMasterRef.current = releaseMaster;
@@ -96,10 +94,6 @@ export function useMetronome() {
     return () => {
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
       releaseMasterRef.current?.();
-      releaseCtxRef.current?.();
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-      }
     };
   }, []);
 

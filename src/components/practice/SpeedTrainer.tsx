@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Square, TrendingUp, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,6 @@ import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { RIFFS, fretToFrequency, type Riff } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 export function SpeedTrainer() {
@@ -28,7 +28,6 @@ export function SpeedTrainer() {
   const runningRef = useRef(false);
   const bpmRef = useRef(startBpm);
   const repRef = useRef(0);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
 
@@ -131,8 +130,7 @@ export function SpeedTrainer() {
     stop();
     setCompleted(false);
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      ctxRef.current = getSharedAudioContextSync();
       const { master, release } = createMasterGain(ctxRef.current);
       masterRef.current = master;
       releaseMasterRef.current = release;
@@ -180,11 +178,8 @@ export function SpeedTrainer() {
   useEffect(() => () => {
     stop();
     releaseMasterRef.current?.();
-    releaseCtxRef.current?.();
     masterRef.current = null;
     releaseMasterRef.current = null;
-    releaseCtxRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, [stop]);
 

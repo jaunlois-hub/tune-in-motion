@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, Play, RotateCcw, Eye, EyeOff, Flame, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { getSharedAudioContext } from '@/lib/sharedAudioContext';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -206,9 +206,12 @@ export function IntervalTrainer() {
 
   const ctxRef = useRef<AudioContext | null>(null);
   const bufRef = useRef<AudioBuffer | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
+  // Track whether the user has interacted yet — we never auto-play on mount,
+  // because (a) it surprises the user with sound and (b) before a gesture
+  // the AudioContext is suspended and emits glitches.
+  const userStartedRef = useRef(false);
 
   // Restore best streak
   useEffect(() => {
@@ -216,14 +219,12 @@ export function IntervalTrainer() {
     if (stored) setBestStreak(Number(stored) || 0);
   }, []);
 
-  // Unmount cleanup: unregister and close ctx
+  // Unmount cleanup: release the master gain. The shared AudioContext is
+  // intentionally NOT closed — other features share it.
   useEffect(() => () => {
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
-    releaseCtxRef.current?.();
-    releaseCtxRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, []);
 
@@ -235,15 +236,14 @@ export function IntervalTrainer() {
 
   const playInterval = useCallback(
     async (a: FretPos, b: FretPos, dir: Direction) => {
-      if (!ctxRef.current || ctxRef.current.state === 'closed') {
-        ctxRef.current = new AudioContext();
-        releaseCtxRef.current = registerAudioContext(ctxRef.current);
-        const { master, release } = createMasterGain(ctxRef.current);
+      const ctx = await getSharedAudioContext();
+      if (ctxRef.current !== ctx) {
+        ctxRef.current = ctx;
+        releaseMasterRef.current?.();
+        const { master, release } = createMasterGain(ctx);
         masterRef.current = master;
         releaseMasterRef.current = release;
       }
-      const ctx = ctxRef.current;
-      if (ctx.state === 'suspended') await ctx.resume();
       if (!bufRef.current) bufRef.current = await ensurePluckBuffer(ctx);
       const buf = bufRef.current;
       const t0 = ctx.currentTime + 0.05;
@@ -276,7 +276,10 @@ export function IntervalTrainer() {
     const dir: Direction = direction;
     setTarget({ interval, a, b, dir });
     setFeedback(null);
-    if (mode !== 'visual') {
+    // Only auto-play after the user has interacted at least once. On first
+    // mount the question is set up silently — the user clicks "Play" or
+    // chooses an interval to start things.
+    if (mode !== 'visual' && userStartedRef.current) {
       setTimeout(() => playInterval(a, b, dir), 250);
     }
   }, [intervalPool, direction, mode, playInterval]);
@@ -417,10 +420,22 @@ export function IntervalTrainer() {
       {/* Audio replay */}
       {target && (
         <div className="flex justify-center gap-2">
-          <Button onClick={() => playInterval(target.a, target.b, target.dir)} size="sm" className="gap-2">
-            <Volume2 className="w-4 h-4" /> Replay
+          <Button
+            onClick={() => {
+              userStartedRef.current = true;
+              playInterval(target.a, target.b, target.dir);
+            }}
+            size="sm"
+            className="gap-2"
+          >
+            <Volume2 className="w-4 h-4" /> {userStartedRef.current ? 'Replay' : 'Play'}
           </Button>
-          <Button variant="outline" onClick={newQuestion} size="sm" className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => { userStartedRef.current = true; newQuestion(); }}
+            size="sm"
+            className="gap-2"
+          >
             <Play className="w-4 h-4" /> Skip / Next
           </Button>
         </div>
