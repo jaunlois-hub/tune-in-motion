@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { registerAudioContext } from './useAudioDevices';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useAudioDucking } from './useAudioDucking';
 import { createMasterGain } from './useMasterVolume';
 
@@ -9,7 +9,6 @@ export function useReferenceTone() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const durationTimeoutRef = useRef<number | null>(null);
   const duckActiveRef = useRef(false);
@@ -28,9 +27,8 @@ export function useReferenceTone() {
 
   const getContext = useCallback(() => {
     if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-      const ctx = new AudioContext();
+      const ctx = getSharedAudioContextSync();
       audioContextRef.current = ctx;
-      releaseCtxRef.current = registerAudioContext(ctx);
       const { master, release } = createMasterGain(ctx);
       masterGainRef.current = master;
       releaseMasterRef.current = release;
@@ -146,9 +144,7 @@ export function useReferenceTone() {
     oscillatorRef.current = null;
     gainNodeRef.current = null;
     releaseMasterRef.current?.();
-    releaseCtxRef.current?.();
     releaseMasterRef.current = null;
-    releaseCtxRef.current = null;
     masterGainRef.current = null;
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));

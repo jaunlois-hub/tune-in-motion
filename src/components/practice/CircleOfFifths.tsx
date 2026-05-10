@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Volume2, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import {
   type Progression,
 } from '@/lib/musicTheory';
 import { ChordDiagram } from '@/components/studio/ChordDiagram';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 export function CircleOfFifths() {
@@ -21,16 +21,13 @@ export function CircleOfFifths() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimeoutRef = useRef<number[]>([]);
   const loopingRef = useRef(false);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
 
   const ensureCtxRegistered = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
-      releaseCtxRef.current?.();
+      audioCtxRef.current = getSharedAudioContextSync();
       releaseMasterRef.current?.();
-      releaseCtxRef.current = registerAudioContext(audioCtxRef.current);
       const { master, release } = createMasterGain(audioCtxRef.current);
       masterRef.current = master;
       releaseMasterRef.current = release;
@@ -146,10 +143,8 @@ export function CircleOfFifths() {
     playTimeoutRef.current.forEach(clearTimeout);
     playTimeoutRef.current = [];
     releaseMasterRef.current?.();
-    releaseCtxRef.current?.();
     masterRef.current = null;
     releaseMasterRef.current = null;
-    releaseCtxRef.current = null;
     audioCtxRef.current?.close().catch(() => { /* ignore */ });
     audioCtxRef.current = null;
   }, []);

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Square, Guitar, Music2, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import {
   fretToFrequency, type Riff, type ScaleDefinition, type NoteName,
 } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 type SubTab = 'riffs' | 'scales';
@@ -115,7 +115,6 @@ export function RiffsAndScales() {
   const masterGainRef = useRef<GainNode | null>(null);
   const reverbRef = useRef<ConvolverNode | null>(null);
   const pluckBufferRef = useRef<AudioBuffer | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const outMasterRef = useRef<GainNode | null>(null);
   const releaseOutMasterRef = useRef<(() => void) | null>(null);
 
@@ -133,8 +132,7 @@ export function RiffsAndScales() {
 
   const ensureAudioGraph = useCallback(async () => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      ctxRef.current = getSharedAudioContextSync();
       const { master, release } = createMasterGain(ctxRef.current);
       outMasterRef.current = master;
       releaseOutMasterRef.current = release;
@@ -280,10 +278,8 @@ export function RiffsAndScales() {
   useEffect(() => () => {
     stopPlaying();
     releaseOutMasterRef.current?.();
-    releaseCtxRef.current?.();
     outMasterRef.current = null;
     releaseOutMasterRef.current = null;
-    releaseCtxRef.current = null;
     masterGainRef.current = null;
     reverbRef.current = null;
     ctxRef.current?.close().catch(() => { /* ignore */ });

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -7,7 +8,6 @@ import {
   RHYTHM_PATTERNS, NOTE_NAMES, getChordName, getChordFrequencies,
   type Progression, type RhythmPattern,
 } from '@/lib/musicTheory';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number, dest: AudioNode) {
@@ -97,7 +97,6 @@ export function JamSession() {
   const timerRef = useRef<number | null>(null);
   const loopRef = useRef<number[]>([]);
   const playingRef = useRef(false);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
 
@@ -152,8 +151,7 @@ export function JamSession() {
 
   const start = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-      releaseCtxRef.current = registerAudioContext(ctxRef.current);
+      ctxRef.current = getSharedAudioContextSync();
       const { master, release } = createMasterGain(ctxRef.current);
       masterRef.current = master;
       releaseMasterRef.current = release;
@@ -211,10 +209,8 @@ export function JamSession() {
   useEffect(() => () => {
     stop();
     releaseMasterRef.current?.();
-    releaseCtxRef.current?.();
     masterRef.current = null;
     releaseMasterRef.current = null;
-    releaseCtxRef.current = null;
     ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, [stop]);

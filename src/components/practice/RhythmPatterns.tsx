@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { RHYTHM_PATTERNS, type RhythmPattern } from '@/lib/musicTheory';
-import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 function synthDrum(ctx: AudioContext, dest: AudioNode, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number) {
@@ -80,7 +80,6 @@ export function RhythmPatterns() {
   const [currentBeat, setCurrentBeat] = useState(-1);
   const ctxRef = useRef<AudioContext | null>(null);
   const masterRef = useRef<GainNode | null>(null);
-  const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<number | null>(null);
   const nextLoopStartRef = useRef(0);
@@ -97,9 +96,8 @@ export function RhythmPatterns() {
 
   const startPlaying = useCallback(async () => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      const ctx = new AudioContext();
+      const ctx = getSharedAudioContextSync();
       ctxRef.current = ctx;
-      releaseCtxRef.current = registerAudioContext(ctx);
       const { master, release } = createMasterGain(ctx);
       masterRef.current = master;
       releaseMasterRef.current = release;
@@ -158,9 +156,7 @@ export function RhythmPatterns() {
     return () => {
       stopPlaying();
       releaseMasterRef.current?.();
-      releaseCtxRef.current?.();
       releaseMasterRef.current = null;
-      releaseCtxRef.current = null;
       masterRef.current = null;
       if (ctxRef.current && ctxRef.current.state !== 'closed') {
         ctxRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
