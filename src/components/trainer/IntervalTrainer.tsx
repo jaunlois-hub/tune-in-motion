@@ -276,7 +276,10 @@ export function IntervalTrainer() {
     const dir: Direction = direction;
     setTarget({ interval, a, b, dir });
     setFeedback(null);
-    if (mode !== 'visual') {
+    // Only auto-play after the user has interacted at least once. On first
+    // mount the question is set up silently — the user clicks "Play" or
+    // chooses an interval to start things.
+    if (mode !== 'visual' && userStartedRef.current) {
       setTimeout(() => playInterval(a, b, dir), 250);
     }
   }, [intervalPool, direction, mode, playInterval]);
