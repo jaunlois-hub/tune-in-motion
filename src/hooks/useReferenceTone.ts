@@ -146,9 +146,6 @@ export function useReferenceTone() {
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterGainRef.current = null;
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-    }
     audioContextRef.current = null;
   }, [popDuck]);
 

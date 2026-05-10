@@ -145,7 +145,6 @@ export function CircleOfFifths() {
     releaseMasterRef.current?.();
     masterRef.current = null;
     releaseMasterRef.current = null;
-    audioCtxRef.current?.close().catch(() => { /* ignore */ });
     audioCtxRef.current = null;
   }, []);
 

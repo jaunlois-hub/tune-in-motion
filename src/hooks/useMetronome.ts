@@ -94,9 +94,6 @@ export function useMetronome() {
     return () => {
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
       releaseMasterRef.current?.();
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-      }
     };
   }, []);
 

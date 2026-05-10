@@ -282,7 +282,6 @@ export function RiffsAndScales() {
     releaseOutMasterRef.current = null;
     masterGainRef.current = null;
     reverbRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, [stopPlaying]);
 

@@ -501,9 +501,6 @@ export function useDrumMachine() {
       isPlayingRef.current = false;
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
       compressorRef.current = null;
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-      }
       audioContextRef.current = null;
     };
   }, []);

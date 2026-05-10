@@ -104,7 +104,6 @@ function useAudioPlayback() {
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, []);
 

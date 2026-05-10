@@ -158,9 +158,6 @@ export function RhythmPatterns() {
       releaseMasterRef.current?.();
       releaseMasterRef.current = null;
       masterRef.current = null;
-      if (ctxRef.current && ctxRef.current.state !== 'closed') {
-        ctxRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
-      }
       ctxRef.current = null;
     };
   }, [stopPlaying]);

@@ -188,7 +188,6 @@ export function useSmartDrummer() {
       streamRef.current = null;
     }
     if (audioContextRef.current) {
-      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
       audioContextRef.current = null;
     }
     analyserRef.current = null;

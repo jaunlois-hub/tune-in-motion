@@ -211,7 +211,6 @@ export function JamSession() {
     releaseMasterRef.current?.();
     masterRef.current = null;
     releaseMasterRef.current = null;
-    ctxRef.current?.close().catch(() => { /* ignore */ });
     ctxRef.current = null;
   }, [stop]);
 
