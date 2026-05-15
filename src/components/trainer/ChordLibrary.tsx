@@ -5,7 +5,7 @@ import { Volume2, RotateCcw, Flame, Trophy, BookOpen, GraduationCap, Eye, Headph
 import { Button } from '@/components/ui/button';
 import { ChordDiagram } from '@/components/studio/ChordDiagram';
 import { CHORD_DIAGRAMS } from '@/hooks/useChordDetection';
-import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -354,10 +354,17 @@ export function ChordLibrary() {
   const bufRef = useRef<AudioBuffer | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
+  const activeNotesRef = useRef<PluckedNoteHandle[]>([]);
+
+  const stopActiveNotes = useCallback(() => {
+    activeNotesRef.current.forEach((note) => note.stop());
+    activeNotesRef.current = [];
+  }, []);
 
   const playChord = useCallback(async (name: string) => {
     const freqs = frequenciesForChord(name);
     if (freqs.length === 0) return;
+    stopActiveNotes();
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
       ctxRef.current = getSharedAudioContextSync();
       const { master, release } = createMasterGain(ctxRef.current);
@@ -370,17 +377,18 @@ export function ChordLibrary() {
     const buf = bufRef.current;
     const dest = masterRef.current ?? ctx.destination;
     // Strum: ~25ms between strings, low to high
-    freqs.forEach((f, i) => {
-      playPluckedNote(ctx, buf, f, ctx.currentTime + 0.05 + i * 0.025, 1.6, 0.6, dest);
-    });
-  }, []);
+    activeNotesRef.current = freqs.map((f, i) => (
+      playPluckedNote(ctx, buf, f, ctx.currentTime + 0.05 + i * 0.025, 0.9, 0.42, dest, 0.5)
+    ));
+  }, [stopActiveNotes]);
 
   useEffect(() => () => {
+    stopActiveNotes();
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
     ctxRef.current = null;
-  }, []);
+  }, [stopActiveNotes]);
 
   return (
     <div className="space-y-4">
