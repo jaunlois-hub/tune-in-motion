@@ -174,10 +174,7 @@ function QuizPanel({
     setTarget(chord);
     setOptions(opts);
     setFeedback(null);
-    if (quizMode === 'sound') {
-      setTimeout(() => onPlay(chord), 250);
-    }
-  }, [pool, quizMode, onPlay]);
+  }, [pool]);
 
   useEffect(() => {
     if (!target) newQuestion();
