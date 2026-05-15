@@ -5,7 +5,7 @@ import { ArrowLeftRight, Brain, Music, Layers, Ear, Scale, Play, Square, RotateC
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { NOTE_NAMES, type NoteName } from '@/lib/musicTheory';
-import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -61,6 +61,12 @@ function useAudioPlayback() {
   const bufRef = useRef<AudioBuffer | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
+  const activeNotesRef = useRef<PluckedNoteHandle[]>([]);
+
+  const stopActiveNotes = useCallback(() => {
+    activeNotesRef.current.forEach((note) => note.stop());
+    activeNotesRef.current = [];
+  }, []);
 
   const ensureCtx = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
@@ -74,18 +80,21 @@ function useAudioPlayback() {
   }, []);
 
   const playNote = useCallback(async (freq: number, dur = 0.6, vel = 0.7) => {
+    stopActiveNotes();
     const ctx = ensureCtx();
     if (ctx.state === 'suspended') await ctx.resume();
     if (!bufRef.current) {
       bufRef.current = await ensurePluckBuffer(ctx);
     }
     const dest = masterRef.current ?? ctx.destination;
-    playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest);
-  }, [ensureCtx]);
+    const handle = playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45);
+    activeNotesRef.current = [handle];
+  }, [ensureCtx, stopActiveNotes]);
 
   const playSequence = useCallback(async (
     notes: { freq: number; dur?: number; gap?: number; vel?: number }[],
   ) => {
+    stopActiveNotes();
     const ctx = ensureCtx();
     if (ctx.state === 'suspended') await ctx.resume();
     if (!bufRef.current) {
@@ -93,19 +102,22 @@ function useAudioPlayback() {
     }
     const dest = masterRef.current ?? ctx.destination;
     let t = ctx.currentTime + 0.05;
+    const handles: PluckedNoteHandle[] = [];
     for (const n of notes) {
       const dur = n.dur ?? 0.6;
-      playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest);
+      handles.push(playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
       t += (n.gap ?? dur);
     }
-  }, [ensureCtx]);
+    activeNotesRef.current = handles;
+  }, [ensureCtx, stopActiveNotes]);
 
   useEffect(() => () => {
+    stopActiveNotes();
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
     ctxRef.current = null;
-  }, []);
+  }, [stopActiveNotes]);
 
   return { playNote, playSequence };
 }
