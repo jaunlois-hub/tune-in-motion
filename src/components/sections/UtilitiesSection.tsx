@@ -615,7 +615,7 @@ const INTERVALS: { semis: number; name: string; short: string }[] = [
 ];
 
 function IntervalEarTraining() {
-  const { playSequence, playNote } = useAudioPlayback();
+  const { playSequence } = useAudioPlayback();
   const [mode, setMode] = useState<'asc' | 'desc' | 'harm'>('asc');
   const [target, setTarget] = useState<typeof INTERVALS[number] | null>(null);
   const [rootFreq, setRootFreq] = useState<number>(220);
@@ -626,15 +626,13 @@ function IntervalEarTraining() {
     const a = rf;
     const b = rf * Math.pow(2, interval.semis / 12);
     if (mode === 'harm') {
-      // both at once
-      playNote(a, 1.2, 0.7);
-      playNote(b, 1.2, 0.7);
+      playSequence([{ freq: a, dur: 1.0, gap: 0, vel: 0.55 }, { freq: b, dur: 1.0, gap: 1.0, vel: 0.55 }]);
     } else {
       const seq = mode === 'asc' ? [{ freq: a, dur: 0.6, gap: 0.6 }, { freq: b, dur: 1.0 }]
                                   : [{ freq: b, dur: 0.6, gap: 0.6 }, { freq: a, dur: 1.0 }];
       playSequence(seq);
     }
-  }, [mode, playNote, playSequence]);
+  }, [mode, playSequence]);
 
   const newQuestion = useCallback(() => {
     const interval = INTERVALS[Math.floor(Math.random() * INTERVALS.length)];
@@ -642,8 +640,7 @@ function IntervalEarTraining() {
     setTarget(interval);
     setRootFreq(rf);
     setFeedback(null);
-    setTimeout(() => playInterval(interval, rf), 200);
-  }, [playInterval]);
+  }, []);
 
   useEffect(() => {
     if (!target) newQuestion();
