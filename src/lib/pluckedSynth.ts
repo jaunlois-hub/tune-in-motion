@@ -1,17 +1,12 @@
-// Karplus-Strong plucked-string synthesis.
+// Safe plucked-string synthesis.
 //
-// We render one reference pluck offline (~4 seconds at G3 = 196 Hz), cache the buffer,
-// and play it back at varied playbackRate to pitch each note. This sounds dramatically
-// more guitar-like than a sawtooth-oscillator-with-lowpass approach: real attack
-// transient, harmonic content, and a natural exponential decay where high frequencies
-// die off faster than the fundamental — exactly like a plucked string.
-//
-// The loop:
-//   noise burst → delay (1/freq) → lowpass → DC-blocker → feedback → delay (rings)
-// Output = delay + small pick-attack click (highpassed noise).
+// This intentionally avoids delay-feedback / Karplus-Strong loops. Tiny Web Audio
+// feedback cycles can become unstable on some browsers/devices and produce a
+// piercing high-frequency squeal. Instead we render a short harmonic pluck buffer
+// with a decaying body and a damped pick transient, then play it back at pitch.
 
 const REF_FREQ = 196; // G3 — mid-range so playbackRate doesn't stretch extremes too far
-const RENDER_SECONDS = 4;
+const RENDER_SECONDS = 2.4;
 
 // Per-AudioContext cache (different sample rates render different buffers)
 const cacheByCtx = new WeakMap<AudioContext, AudioBuffer>();
@@ -22,59 +17,33 @@ export async function ensurePluckBuffer(ctx: AudioContext): Promise<AudioBuffer>
 
   const sr = ctx.sampleRate;
   const totalSamples = Math.floor(sr * RENDER_SECONDS);
-  const offline = new OfflineAudioContext(1, totalSamples, sr);
+  const buffer = ctx.createBuffer(1, totalSamples, sr);
+  const data = buffer.getChannelData(0);
+  let previousNoise = 0;
 
-  // Excitation: short noise burst, half-cosine windowed for smoother transient
-  const burstLen = Math.max(8, Math.floor(sr * 0.008)); // ~8 ms
-  const noiseBuf = offline.createBuffer(1, burstLen, sr);
-  const data = noiseBuf.getChannelData(0);
-  for (let i = 0; i < burstLen; i++) {
-    const window = Math.sin((Math.PI * i) / burstLen);
-    data[i] = (Math.random() * 2 - 1) * window * 0.6;
+  for (let i = 0; i < totalSamples; i++) {
+    const t = i / sr;
+    const bodyEnv = Math.exp(-t * 3.4);
+    const brightnessEnv = Math.exp(-t * 10);
+    const pickEnv = Math.exp(-t * 95);
+    let sample = 0;
+
+    for (let h = 1; h <= 10; h++) {
+      const harmonicRollOff = 1 / (h * 1.18);
+      const harmonicDamping = h <= 3 ? bodyEnv : brightnessEnv;
+      const detune = 1 + (h % 2 === 0 ? 0.0015 : -0.001);
+      sample += Math.sin(2 * Math.PI * REF_FREQ * h * detune * t) * harmonicRollOff * harmonicDamping;
+    }
+
+    const noise = Math.random() * 2 - 1;
+    const highpassedNoise = noise - previousNoise;
+    previousNoise = noise;
+    sample += highpassedNoise * pickEnv * 0.08;
+
+    // Fixed headroom: prevents clipped stacked chords even before the master limiter.
+    data[i] = Math.max(-0.85, Math.min(0.85, sample * 0.34));
   }
-  const noiseSrc = offline.createBufferSource();
-  noiseSrc.buffer = noiseBuf;
 
-  // Karplus-Strong loop
-  const delay = offline.createDelay(0.1);
-  delay.delayTime.value = 1 / REF_FREQ;
-
-  const lpf = offline.createBiquadFilter();
-  lpf.type = 'lowpass';
-  lpf.frequency.value = 4500;
-  lpf.Q.value = 0.5;
-
-  const fbGain = offline.createGain();
-  fbGain.gain.value = 0.997; // long natural sustain — envelope cuts each note when needed
-
-  const dcBlock = offline.createBiquadFilter();
-  dcBlock.type = 'highpass';
-  dcBlock.frequency.value = 30;
-
-  noiseSrc.connect(delay);
-  delay.connect(lpf);
-  lpf.connect(fbGain);
-  fbGain.connect(dcBlock);
-  dcBlock.connect(delay);
-
-  // Main output: ringing delay
-  const outGain = offline.createGain();
-  outGain.gain.value = 0.7;
-  delay.connect(outGain);
-  outGain.connect(offline.destination);
-
-  // Pick attack click: highpassed noise burst, mixed in dry
-  const pickHp = offline.createBiquadFilter();
-  pickHp.type = 'highpass';
-  pickHp.frequency.value = 1800;
-  const pickGain = offline.createGain();
-  pickGain.gain.value = 0.18;
-  noiseSrc.connect(pickHp);
-  pickHp.connect(pickGain);
-  pickGain.connect(offline.destination);
-
-  noiseSrc.start(0);
-  const buffer = await offline.startRendering();
   cacheByCtx.set(ctx, buffer);
   return buffer;
 }
