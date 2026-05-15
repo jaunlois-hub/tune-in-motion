@@ -23,14 +23,28 @@ const liveMasters = new Set<{ ctx: AudioContext; gain: GainNode }>();
  */
 export function createMasterGain(ctx: AudioContext): { master: GainNode; release: () => void } {
   const master = ctx.createGain();
+  const highCut = ctx.createBiquadFilter();
+  highCut.type = 'lowpass';
+  highCut.frequency.value = 8500;
+  highCut.Q.value = 0.2;
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -18;
+  limiter.knee.value = 8;
+  limiter.ratio.value = 12;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.12;
   master.gain.value = useMasterVolume.getState().masterVolume;
-  master.connect(ctx.destination);
+  master.connect(highCut);
+  highCut.connect(limiter);
+  limiter.connect(ctx.destination);
   const entry = { ctx, gain: master };
   liveMasters.add(entry);
   return {
     master,
     release: () => {
       try { master.disconnect(); } catch { /* already disconnected */ }
+      try { highCut.disconnect(); } catch { /* already disconnected */ }
+      try { limiter.disconnect(); } catch { /* already disconnected */ }
       liveMasters.delete(entry);
     },
   };

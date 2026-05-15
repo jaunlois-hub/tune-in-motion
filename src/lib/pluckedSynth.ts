@@ -1,17 +1,12 @@
-// Karplus-Strong plucked-string synthesis.
+// Safe plucked-string synthesis.
 //
-// We render one reference pluck offline (~4 seconds at G3 = 196 Hz), cache the buffer,
-// and play it back at varied playbackRate to pitch each note. This sounds dramatically
-// more guitar-like than a sawtooth-oscillator-with-lowpass approach: real attack
-// transient, harmonic content, and a natural exponential decay where high frequencies
-// die off faster than the fundamental — exactly like a plucked string.
-//
-// The loop:
-//   noise burst → delay (1/freq) → lowpass → DC-blocker → feedback → delay (rings)
-// Output = delay + small pick-attack click (highpassed noise).
+// This intentionally avoids delay-feedback / Karplus-Strong loops. Tiny Web Audio
+// feedback cycles can become unstable on some browsers/devices and produce a
+// piercing high-frequency squeal. Instead we render a short harmonic pluck buffer
+// with a decaying body and a damped pick transient, then play it back at pitch.
 
 const REF_FREQ = 196; // G3 — mid-range so playbackRate doesn't stretch extremes too far
-const RENDER_SECONDS = 4;
+const RENDER_SECONDS = 2.4;
 
 // Per-AudioContext cache (different sample rates render different buffers)
 const cacheByCtx = new WeakMap<AudioContext, AudioBuffer>();
@@ -22,59 +17,33 @@ export async function ensurePluckBuffer(ctx: AudioContext): Promise<AudioBuffer>
 
   const sr = ctx.sampleRate;
   const totalSamples = Math.floor(sr * RENDER_SECONDS);
-  const offline = new OfflineAudioContext(1, totalSamples, sr);
+  const buffer = ctx.createBuffer(1, totalSamples, sr);
+  const data = buffer.getChannelData(0);
+  let previousNoise = 0;
 
-  // Excitation: short noise burst, half-cosine windowed for smoother transient
-  const burstLen = Math.max(8, Math.floor(sr * 0.008)); // ~8 ms
-  const noiseBuf = offline.createBuffer(1, burstLen, sr);
-  const data = noiseBuf.getChannelData(0);
-  for (let i = 0; i < burstLen; i++) {
-    const window = Math.sin((Math.PI * i) / burstLen);
-    data[i] = (Math.random() * 2 - 1) * window * 0.6;
+  for (let i = 0; i < totalSamples; i++) {
+    const t = i / sr;
+    const bodyEnv = Math.exp(-t * 3.4);
+    const brightnessEnv = Math.exp(-t * 10);
+    const pickEnv = Math.exp(-t * 95);
+    let sample = 0;
+
+    for (let h = 1; h <= 10; h++) {
+      const harmonicRollOff = 1 / (h * 1.18);
+      const harmonicDamping = h <= 3 ? bodyEnv : brightnessEnv;
+      const detune = 1 + (h % 2 === 0 ? 0.0015 : -0.001);
+      sample += Math.sin(2 * Math.PI * REF_FREQ * h * detune * t) * harmonicRollOff * harmonicDamping;
+    }
+
+    const noise = Math.random() * 2 - 1;
+    const highpassedNoise = noise - previousNoise;
+    previousNoise = noise;
+    sample += highpassedNoise * pickEnv * 0.08;
+
+    // Fixed headroom: prevents clipped stacked chords even before the master limiter.
+    data[i] = Math.max(-0.85, Math.min(0.85, sample * 0.34));
   }
-  const noiseSrc = offline.createBufferSource();
-  noiseSrc.buffer = noiseBuf;
 
-  // Karplus-Strong loop
-  const delay = offline.createDelay(0.1);
-  delay.delayTime.value = 1 / REF_FREQ;
-
-  const lpf = offline.createBiquadFilter();
-  lpf.type = 'lowpass';
-  lpf.frequency.value = 4500;
-  lpf.Q.value = 0.5;
-
-  const fbGain = offline.createGain();
-  fbGain.gain.value = 0.997; // long natural sustain — envelope cuts each note when needed
-
-  const dcBlock = offline.createBiquadFilter();
-  dcBlock.type = 'highpass';
-  dcBlock.frequency.value = 30;
-
-  noiseSrc.connect(delay);
-  delay.connect(lpf);
-  lpf.connect(fbGain);
-  fbGain.connect(dcBlock);
-  dcBlock.connect(delay);
-
-  // Main output: ringing delay
-  const outGain = offline.createGain();
-  outGain.gain.value = 0.7;
-  delay.connect(outGain);
-  outGain.connect(offline.destination);
-
-  // Pick attack click: highpassed noise burst, mixed in dry
-  const pickHp = offline.createBiquadFilter();
-  pickHp.type = 'highpass';
-  pickHp.frequency.value = 1800;
-  const pickGain = offline.createGain();
-  pickGain.gain.value = 0.18;
-  noiseSrc.connect(pickHp);
-  pickHp.connect(pickGain);
-  pickGain.connect(offline.destination);
-
-  noiseSrc.start(0);
-  const buffer = await offline.startRendering();
   cacheByCtx.set(ctx, buffer);
   return buffer;
 }
@@ -112,6 +81,10 @@ export function playPluckedNote(
   destination: AudioNode = ctx.destination,
   releaseTime = 1.4,
 ): PluckedNoteHandle {
+  const safeStart = Math.max(ctx.currentTime + 0.005, startTime);
+  const safeDuration = Math.max(0.03, duration);
+  const safeVelocity = Math.min(0.32, Math.max(0, velocity));
+  const safeRelease = Math.min(0.9, Math.max(0.08, releaseTime));
   const src = ctx.createBufferSource();
   src.buffer = buffer;
   src.playbackRate.value = freq / REF_FREQ;
@@ -119,26 +92,52 @@ export function playPluckedNote(
   // Subtle velocity-driven LPF to avoid lower notes sounding overly bright at full velocity
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass';
-  tone.frequency.value = 4000 + velocity * 3000;
-  tone.Q.value = 0.4;
+  tone.frequency.value = 2600 + safeVelocity * 4200;
+  tone.Q.value = 0.2;
 
-  const totalDuration = duration + releaseTime;
+  const safetyHp = ctx.createBiquadFilter();
+  safetyHp.type = 'highpass';
+  safetyHp.frequency.value = 45;
+  safetyHp.Q.value = 0.2;
+
+  const safetyLp = ctx.createBiquadFilter();
+  safetyLp.type = 'lowpass';
+  safetyLp.frequency.value = 6200;
+  safetyLp.Q.value = 0.2;
+
+  const totalDuration = safeDuration + safeRelease;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0, startTime);
-  g.gain.linearRampToValueAtTime(velocity, startTime + 0.003);
+  g.gain.setValueAtTime(0, safeStart);
+  g.gain.linearRampToValueAtTime(safeVelocity, safeStart + 0.012);
   // Hold near peak through the rhythmic duration
-  g.gain.setValueAtTime(velocity * 0.9, startTime + Math.max(0.03, duration * 0.95));
+  g.gain.setValueAtTime(safeVelocity * 0.72, safeStart + Math.max(0.03, safeDuration * 0.85));
   // Long exponential release — natural ring-out
-  g.gain.exponentialRampToValueAtTime(0.001, startTime + totalDuration);
+  g.gain.exponentialRampToValueAtTime(0.001, safeStart + totalDuration);
 
   src.connect(tone);
-  tone.connect(g);
+  tone.connect(safetyHp);
+  safetyHp.connect(safetyLp);
+  safetyLp.connect(g);
   g.connect(destination);
-  src.start(startTime);
-  src.stop(startTime + totalDuration + 0.1);
+  src.start(safeStart);
+  src.stop(safeStart + totalDuration + 0.08);
+  src.onended = () => {
+    try { src.disconnect(); } catch { /* already disconnected */ }
+    try { tone.disconnect(); } catch { /* already disconnected */ }
+    try { safetyHp.disconnect(); } catch { /* already disconnected */ }
+    try { safetyLp.disconnect(); } catch { /* already disconnected */ }
+    try { g.disconnect(); } catch { /* already disconnected */ }
+  };
 
   return {
-    stop: () => { try { src.stop(); } catch { /* already stopped */ } },
+    stop: () => {
+      try {
+        const now = ctx.currentTime;
+        g.gain.cancelScheduledValues(now);
+        g.gain.setTargetAtTime(0.0001, now, 0.015);
+        src.stop(now + 0.05);
+      } catch { /* already stopped */ }
+    },
     source: src,
   };
 }

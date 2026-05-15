@@ -5,7 +5,7 @@ import { ArrowLeftRight, Brain, Music, Layers, Ear, Scale, Play, Square, RotateC
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { NOTE_NAMES, type NoteName } from '@/lib/musicTheory';
-import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -61,6 +61,12 @@ function useAudioPlayback() {
   const bufRef = useRef<AudioBuffer | null>(null);
   const masterRef = useRef<GainNode | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
+  const activeNotesRef = useRef<PluckedNoteHandle[]>([]);
+
+  const stopActiveNotes = useCallback(() => {
+    activeNotesRef.current.forEach((note) => note.stop());
+    activeNotesRef.current = [];
+  }, []);
 
   const ensureCtx = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
@@ -74,18 +80,21 @@ function useAudioPlayback() {
   }, []);
 
   const playNote = useCallback(async (freq: number, dur = 0.6, vel = 0.7) => {
+    stopActiveNotes();
     const ctx = ensureCtx();
     if (ctx.state === 'suspended') await ctx.resume();
     if (!bufRef.current) {
       bufRef.current = await ensurePluckBuffer(ctx);
     }
     const dest = masterRef.current ?? ctx.destination;
-    playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest);
-  }, [ensureCtx]);
+    const handle = playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45);
+    activeNotesRef.current = [handle];
+  }, [ensureCtx, stopActiveNotes]);
 
   const playSequence = useCallback(async (
     notes: { freq: number; dur?: number; gap?: number; vel?: number }[],
   ) => {
+    stopActiveNotes();
     const ctx = ensureCtx();
     if (ctx.state === 'suspended') await ctx.resume();
     if (!bufRef.current) {
@@ -93,19 +102,22 @@ function useAudioPlayback() {
     }
     const dest = masterRef.current ?? ctx.destination;
     let t = ctx.currentTime + 0.05;
+    const handles: PluckedNoteHandle[] = [];
     for (const n of notes) {
       const dur = n.dur ?? 0.6;
-      playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest);
+      handles.push(playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
       t += (n.gap ?? dur);
     }
-  }, [ensureCtx]);
+    activeNotesRef.current = handles;
+  }, [ensureCtx, stopActiveNotes]);
 
   useEffect(() => () => {
+    stopActiveNotes();
     releaseMasterRef.current?.();
     releaseMasterRef.current = null;
     masterRef.current = null;
     ctxRef.current = null;
-  }, []);
+  }, [stopActiveNotes]);
 
   return { playNote, playSequence };
 }
@@ -603,7 +615,7 @@ const INTERVALS: { semis: number; name: string; short: string }[] = [
 ];
 
 function IntervalEarTraining() {
-  const { playSequence, playNote } = useAudioPlayback();
+  const { playSequence } = useAudioPlayback();
   const [mode, setMode] = useState<'asc' | 'desc' | 'harm'>('asc');
   const [target, setTarget] = useState<typeof INTERVALS[number] | null>(null);
   const [rootFreq, setRootFreq] = useState<number>(220);
@@ -614,15 +626,13 @@ function IntervalEarTraining() {
     const a = rf;
     const b = rf * Math.pow(2, interval.semis / 12);
     if (mode === 'harm') {
-      // both at once
-      playNote(a, 1.2, 0.7);
-      playNote(b, 1.2, 0.7);
+      playSequence([{ freq: a, dur: 1.0, gap: 0, vel: 0.55 }, { freq: b, dur: 1.0, gap: 1.0, vel: 0.55 }]);
     } else {
       const seq = mode === 'asc' ? [{ freq: a, dur: 0.6, gap: 0.6 }, { freq: b, dur: 1.0 }]
                                   : [{ freq: b, dur: 0.6, gap: 0.6 }, { freq: a, dur: 1.0 }];
       playSequence(seq);
     }
-  }, [mode, playNote, playSequence]);
+  }, [mode, playSequence]);
 
   const newQuestion = useCallback(() => {
     const interval = INTERVALS[Math.floor(Math.random() * INTERVALS.length)];
@@ -630,8 +640,7 @@ function IntervalEarTraining() {
     setTarget(interval);
     setRootFreq(rf);
     setFeedback(null);
-    setTimeout(() => playInterval(interval, rf), 200);
-  }, [playInterval]);
+  }, []);
 
   useEffect(() => {
     if (!target) newQuestion();
