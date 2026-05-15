@@ -81,6 +81,10 @@ export function playPluckedNote(
   destination: AudioNode = ctx.destination,
   releaseTime = 1.4,
 ): PluckedNoteHandle {
+  const safeStart = Math.max(ctx.currentTime + 0.005, startTime);
+  const safeDuration = Math.max(0.03, duration);
+  const safeVelocity = Math.min(0.32, Math.max(0, velocity));
+  const safeRelease = Math.min(0.9, Math.max(0.08, releaseTime));
   const src = ctx.createBufferSource();
   src.buffer = buffer;
   src.playbackRate.value = freq / REF_FREQ;
@@ -88,26 +92,52 @@ export function playPluckedNote(
   // Subtle velocity-driven LPF to avoid lower notes sounding overly bright at full velocity
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass';
-  tone.frequency.value = 4000 + velocity * 3000;
-  tone.Q.value = 0.4;
+  tone.frequency.value = 2600 + safeVelocity * 4200;
+  tone.Q.value = 0.2;
 
-  const totalDuration = duration + releaseTime;
+  const safetyHp = ctx.createBiquadFilter();
+  safetyHp.type = 'highpass';
+  safetyHp.frequency.value = 45;
+  safetyHp.Q.value = 0.2;
+
+  const safetyLp = ctx.createBiquadFilter();
+  safetyLp.type = 'lowpass';
+  safetyLp.frequency.value = 6200;
+  safetyLp.Q.value = 0.2;
+
+  const totalDuration = safeDuration + safeRelease;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0, startTime);
-  g.gain.linearRampToValueAtTime(velocity, startTime + 0.003);
+  g.gain.setValueAtTime(0, safeStart);
+  g.gain.linearRampToValueAtTime(safeVelocity, safeStart + 0.012);
   // Hold near peak through the rhythmic duration
-  g.gain.setValueAtTime(velocity * 0.9, startTime + Math.max(0.03, duration * 0.95));
+  g.gain.setValueAtTime(safeVelocity * 0.72, safeStart + Math.max(0.03, safeDuration * 0.85));
   // Long exponential release — natural ring-out
-  g.gain.exponentialRampToValueAtTime(0.001, startTime + totalDuration);
+  g.gain.exponentialRampToValueAtTime(0.001, safeStart + totalDuration);
 
   src.connect(tone);
-  tone.connect(g);
+  tone.connect(safetyHp);
+  safetyHp.connect(safetyLp);
+  safetyLp.connect(g);
   g.connect(destination);
-  src.start(startTime);
-  src.stop(startTime + totalDuration + 0.1);
+  src.start(safeStart);
+  src.stop(safeStart + totalDuration + 0.08);
+  src.onended = () => {
+    try { src.disconnect(); } catch { /* already disconnected */ }
+    try { tone.disconnect(); } catch { /* already disconnected */ }
+    try { safetyHp.disconnect(); } catch { /* already disconnected */ }
+    try { safetyLp.disconnect(); } catch { /* already disconnected */ }
+    try { g.disconnect(); } catch { /* already disconnected */ }
+  };
 
   return {
-    stop: () => { try { src.stop(); } catch { /* already stopped */ } },
+    stop: () => {
+      try {
+        const now = ctx.currentTime;
+        g.gain.cancelScheduledValues(now);
+        g.gain.setTargetAtTime(0.0001, now, 0.015);
+        src.stop(now + 0.05);
+      } catch { /* already stopped */ }
+    },
     source: src,
   };
 }
