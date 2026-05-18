@@ -7,6 +7,7 @@ import { ChordDiagram } from '@/components/studio/ChordDiagram';
 import { CHORD_DIAGRAMS } from '@/hooks/useChordDetection';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
 import { createMasterGain } from '@/hooks/useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 // ============================================================
 // Chord families
