@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, Play, RotateCcw, Eye, EyeOff, Flame, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 import { getSharedAudioContext } from '@/lib/sharedAudioContext';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
@@ -248,16 +249,18 @@ export function IntervalTrainer() {
       const buf = bufRef.current;
       const t0 = ctx.currentTime + 0.05;
       const dest = masterRef.current ?? ctx.destination;
-      if (dir === 'harm') {
-        playPluckedNote(ctx, buf, a.freq, t0, 1.2, 0.65, dest);
-        playPluckedNote(ctx, buf, b.freq, t0, 1.2, 0.65, dest);
-      } else if (dir === 'asc') {
-        playPluckedNote(ctx, buf, a.freq, t0, 0.6, 0.7, dest);
-        playPluckedNote(ctx, buf, b.freq, t0 + 0.6, 1.0, 0.7, dest);
-      } else {
-        playPluckedNote(ctx, buf, b.freq, t0, 0.6, 0.7, dest);
-        playPluckedNote(ctx, buf, a.freq, t0 + 0.6, 1.0, 0.7, dest);
-      }
+      withAudioFeature('interval-trainer', () => {
+        if (dir === 'harm') {
+          playPluckedNote(ctx, buf, a.freq, t0, 1.2, 0.65, dest);
+          playPluckedNote(ctx, buf, b.freq, t0, 1.2, 0.65, dest);
+        } else if (dir === 'asc') {
+          playPluckedNote(ctx, buf, a.freq, t0, 0.6, 0.7, dest);
+          playPluckedNote(ctx, buf, b.freq, t0 + 0.6, 1.0, 0.7, dest);
+        } else {
+          playPluckedNote(ctx, buf, b.freq, t0, 0.6, 0.7, dest);
+          playPluckedNote(ctx, buf, a.freq, t0 + 0.6, 1.0, 0.7, dest);
+        }
+      });
     },
     [],
   );

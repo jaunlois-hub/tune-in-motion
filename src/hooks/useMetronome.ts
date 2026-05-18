@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useBpmSync } from './useBpmSync';
 import { createMasterGain } from './useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 export function useMetronome() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -19,15 +20,17 @@ export function useMetronome() {
 
   const scheduleNote = useCallback((time: number, beatNum: number) => {
     if (!audioContextRef.current) return;
-    const osc = audioContextRef.current.createOscillator();
-    const gain = audioContextRef.current.createGain();
-    osc.connect(gain);
-    gain.connect(masterGainRef.current ?? audioContextRef.current.destination);
-    osc.frequency.value = beatNum === 0 ? 1000 : 800;
-    gain.gain.setValueAtTime(0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
-    osc.start(time);
-    osc.stop(time + 0.05);
+    withAudioFeature('metronome', () => {
+      const osc = audioContextRef.current!.createOscillator();
+      const gain = audioContextRef.current!.createGain();
+      osc.connect(gain);
+      gain.connect(masterGainRef.current ?? audioContextRef.current!.destination);
+      osc.frequency.value = beatNum === 0 ? 1000 : 800;
+      gain.gain.setValueAtTime(0.5, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+      osc.start(time);
+      osc.stop(time + 0.05);
+    });
   }, []);
 
   const scheduler = useCallback(() => {

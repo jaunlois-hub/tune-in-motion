@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { NOTE_NAMES, type NoteName } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
@@ -87,7 +88,8 @@ function useAudioPlayback() {
       bufRef.current = await ensurePluckBuffer(ctx);
     }
     const dest = masterRef.current ?? ctx.destination;
-    const handle = playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45);
+    const handle = withAudioFeature('utilities', () =>
+      playPluckedNote(ctx, bufRef.current!, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45));
     activeNotesRef.current = [handle];
   }, [ensureCtx, stopActiveNotes]);
 
@@ -102,12 +104,15 @@ function useAudioPlayback() {
     }
     const dest = masterRef.current ?? ctx.destination;
     let t = ctx.currentTime + 0.05;
-    const handles: PluckedNoteHandle[] = [];
-    for (const n of notes) {
-      const dur = n.dur ?? 0.6;
-      handles.push(playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
-      t += (n.gap ?? dur);
-    }
+    const handles: PluckedNoteHandle[] = withAudioFeature('utilities', () => {
+      const out: PluckedNoteHandle[] = [];
+      for (const n of notes) {
+        const dur = n.dur ?? 0.6;
+        out.push(playPluckedNote(ctx, bufRef.current!, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
+        t += (n.gap ?? dur);
+      }
+      return out;
+    });
     activeNotesRef.current = handles;
   }, [ensureCtx, stopActiveNotes]);
 

@@ -9,6 +9,7 @@
 // other feature still holding a reference.
 
 import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { installDiagnostics } from '@/lib/audioDiagnostics';
 
 let shared: AudioContext | null = null;
 
@@ -22,6 +23,7 @@ export async function getSharedAudioContext(): Promise<AudioContext> {
   if (!shared || shared.state === 'closed') {
     shared = new AudioContext();
     registerAudioContext(shared);
+    installDiagnostics(shared);
   }
   if (shared.state === 'suspended') {
     try { await shared.resume(); } catch (err) { console.warn('Shared AudioContext resume failed', err); }
@@ -39,6 +41,7 @@ export function getSharedAudioContextSync(): AudioContext {
   if (!shared || shared.state === 'closed') {
     shared = new AudioContext();
     registerAudioContext(shared);
+    installDiagnostics(shared);
   }
   return shared;
 }

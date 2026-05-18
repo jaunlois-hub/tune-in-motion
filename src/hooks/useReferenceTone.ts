@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useAudioDucking } from './useAudioDucking';
 import { createMasterGain } from './useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 export function useReferenceTone() {
   const [playingFrequency, setPlayingFrequency] = useState<number | null>(null);
@@ -67,18 +68,20 @@ export function useReferenceTone() {
     stopOscillator();
 
     const ctx = getContext();
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-    gain.connect(masterGainRef.current ?? ctx.destination);
-    gainNodeRef.current = gain;
+    withAudioFeature('reference-tone', () => {
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.connect(masterGainRef.current ?? ctx.destination);
+      gainNodeRef.current = gain;
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-    osc.connect(gain);
-    osc.start();
-    oscillatorRef.current = osc;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      osc.connect(gain);
+      osc.start();
+      oscillatorRef.current = osc;
+    });
 
     setPlayingFrequency(frequency);
     pushDuck();
@@ -94,23 +97,25 @@ export function useReferenceTone() {
     stopOscillator();
 
     const ctx = getContext();
-    const gain = ctx.createGain();
     const durSec = ms / 1000;
+    withAudioFeature('reference-tone', () => {
+      const gain = ctx.createGain();
 
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime + durSec - 0.05);
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + durSec);
-    gain.connect(masterGainRef.current ?? ctx.destination);
-    gainNodeRef.current = gain;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + durSec - 0.05);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + durSec);
+      gain.connect(masterGainRef.current ?? ctx.destination);
+      gainNodeRef.current = gain;
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-    osc.connect(gain);
-    osc.start();
-    osc.stop(ctx.currentTime + durSec + 0.05);
-    oscillatorRef.current = osc;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      osc.connect(gain);
+      osc.start();
+      osc.stop(ctx.currentTime + durSec + 0.05);
+      oscillatorRef.current = osc;
+    });
 
     setPlayingFrequency(frequency);
     pushDuck();
