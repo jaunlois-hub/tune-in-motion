@@ -19,6 +19,7 @@ import { ChordLibrary } from '@/components/trainer/ChordLibrary';
 import { SectionGroup } from '@/components/sections/SectionGroup';
 import { SectionCard } from '@/components/sections/SectionCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { AudioDiagnosticsPanel } from '@/components/diagnostics/AudioDiagnosticsPanel';
 
 const NAV_GROUPS = [
   { id: 'tune', label: 'Tune', icon: Crosshair },
