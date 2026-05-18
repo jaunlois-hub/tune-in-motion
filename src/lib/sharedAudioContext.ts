@@ -41,6 +41,7 @@ export function getSharedAudioContextSync(): AudioContext {
   if (!shared || shared.state === 'closed') {
     shared = new AudioContext();
     registerAudioContext(shared);
+    installDiagnostics(shared);
   }
   return shared;
 }
