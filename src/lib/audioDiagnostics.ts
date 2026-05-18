@@ -22,7 +22,7 @@ export interface TrackedSource {
   kind: SourceKind;
   startedAt: number; // performance.now()
   freq?: number;
-  ref: WeakRef<AudioScheduledSourceNode>;
+  node: AudioScheduledSourceNode;
 }
 
 export interface FeatureStat {
