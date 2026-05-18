@@ -87,7 +87,8 @@ function useAudioPlayback() {
       bufRef.current = await ensurePluckBuffer(ctx);
     }
     const dest = masterRef.current ?? ctx.destination;
-    const handle = playPluckedNote(ctx, bufRef.current, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45);
+    const handle = withAudioFeature('utilities', () =>
+      playPluckedNote(ctx, bufRef.current!, freq, ctx.currentTime + 0.02, dur, vel, dest, 0.45));
     activeNotesRef.current = [handle];
   }, [ensureCtx, stopActiveNotes]);
 
