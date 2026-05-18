@@ -68,18 +68,20 @@ export function useReferenceTone() {
     stopOscillator();
 
     const ctx = getContext();
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-    gain.connect(masterGainRef.current ?? ctx.destination);
-    gainNodeRef.current = gain;
+    withAudioFeature('reference-tone', () => {
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.connect(masterGainRef.current ?? ctx.destination);
+      gainNodeRef.current = gain;
 
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-    osc.connect(gain);
-    osc.start();
-    oscillatorRef.current = osc;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      osc.connect(gain);
+      osc.start();
+      oscillatorRef.current = osc;
+    });
 
     setPlayingFrequency(frequency);
     pushDuck();
