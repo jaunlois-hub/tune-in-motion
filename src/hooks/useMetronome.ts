@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useBpmSync } from './useBpmSync';
 import { createMasterGain } from './useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 export function useMetronome() {
   const [isPlaying, setIsPlaying] = useState(false);
