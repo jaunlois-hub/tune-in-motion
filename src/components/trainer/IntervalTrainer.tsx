@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, Play, RotateCcw, Eye, EyeOff, Flame, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 import { getSharedAudioContext } from '@/lib/sharedAudioContext';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
