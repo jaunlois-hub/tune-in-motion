@@ -104,12 +104,15 @@ function useAudioPlayback() {
     }
     const dest = masterRef.current ?? ctx.destination;
     let t = ctx.currentTime + 0.05;
-    const handles: PluckedNoteHandle[] = [];
-    for (const n of notes) {
-      const dur = n.dur ?? 0.6;
-      handles.push(playPluckedNote(ctx, bufRef.current, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
-      t += (n.gap ?? dur);
-    }
+    const handles: PluckedNoteHandle[] = withAudioFeature('utilities', () => {
+      const out: PluckedNoteHandle[] = [];
+      for (const n of notes) {
+        const dur = n.dur ?? 0.6;
+        out.push(playPluckedNote(ctx, bufRef.current!, n.freq, t, dur, n.vel ?? 0.7, dest, 0.45));
+        t += (n.gap ?? dur);
+      }
+      return out;
+    });
     activeNotesRef.current = handles;
   }, [ensureCtx, stopActiveNotes]);
 
