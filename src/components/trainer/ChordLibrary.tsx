@@ -374,9 +374,9 @@ export function ChordLibrary() {
     const buf = bufRef.current;
     const dest = masterRef.current ?? ctx.destination;
     // Strum: ~25ms between strings, low to high
-    activeNotesRef.current = freqs.map((f, i) => (
+    activeNotesRef.current = withAudioFeature('chord-library', () => freqs.map((f, i) => (
       playPluckedNote(ctx, buf, f, ctx.currentTime + 0.05 + i * 0.025, 0.9, 0.42, dest, 0.5)
-    ));
+    )));
   }, [stopActiveNotes]);
 
   useEffect(() => () => {
