@@ -23,6 +23,7 @@ export async function getSharedAudioContext(): Promise<AudioContext> {
   if (!shared || shared.state === 'closed') {
     shared = new AudioContext();
     registerAudioContext(shared);
+    installDiagnostics(shared);
   }
   if (shared.state === 'suspended') {
     try { await shared.resume(); } catch (err) { console.warn('Shared AudioContext resume failed', err); }
