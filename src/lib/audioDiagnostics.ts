@@ -77,7 +77,7 @@ function recordStart(node: AudioScheduledSourceNode, kind: SourceKind, feature: 
     kind,
     startedAt: performance.now(),
     freq,
-    ref: new WeakRef(node),
+    node,
   };
   const s = useAudioDiagnostics.getState();
   const prev = s.features[feature] ?? { feature, activeCount: 0, totalStarted: 0, lastStartedAt: 0 };
