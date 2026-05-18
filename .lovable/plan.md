@@ -1,78 +1,58 @@
+## Audio Diagnostics Panel
 
+A dev-style overlay that shows in real time which audio features are active (Chord Library, Utilities, Interval Trainer, Metronome, Drummer, Reference Tones, Jam, etc.), how many AudioNodes/sources they currently hold, and the shared AudioContext state. Goal: quickly see *who* is making sound when something squeals.
 
-## Add Note Playback, Circle of Fifths, Rhythm Samples, Riffs/Licks & Scales
+### 1. Tracking layer — `src/lib/audioDiagnostics.ts` (new)
 
-### Overview
-Four new features added to the Practice section as additional tabs, plus a "tune by ear" note player in the Tuner section.
+A tiny Zustand store + helper API:
 
----
+```ts
+type SourceKind = 'buffer' | 'oscillator' | 'media' | 'other';
+interface ActiveSource { id; feature; kind; freq?; startedAt; note?; }
+interface FeatureStat  { feature; activeCount; totalStarted; lastStartedAt; }
 
-### 1. Note Playback in Tuner ("Tune by Ear")
-**File: `src/components/StringIndicator.tsx`** — Already plays reference tones per string. Enhancement:
-- Add a "By Ear" toggle that plays a note for 2 seconds, then stops, so the user tunes by matching pitch from memory
-- Add a "Play All" button that sweeps through strings low-to-high with 3s gaps
+trackSource(feature, node, meta?) → returns id; auto-removes on node.onended
+untrackSource(id)
+useAudioDiagnostics() → { sources, features, ctxState, sampleRate, masterCount }
+```
 
-**File: `src/hooks/useReferenceTone.ts`** — Add a `playForDuration(freq, ms)` method that auto-stops after the given duration.
+It wraps `node.onended` (chaining any existing handler) so cleanup is automatic for `AudioBufferSourceNode` / `OscillatorNode`. For long-lived nodes (delays, gains in a pedal chain) the caller gets an explicit `untrackSource` handle.
 
-### 2. Circle of Fifths with Progressions
-**New file: `src/components/practice/CircleOfFifths.tsx`**
-- Interactive SVG circle showing all 12 keys with major/minor relationships
-- Click a key to set it as root; highlights relative minor, dominant, subdominant
-- Built-in popular progressions per key:
-  - I-IV-V-I, I-V-vi-IV, ii-V-I, I-vi-IV-V, 12-bar blues
-  - vi-IV-I-V (pop), I-IV-vi-V, iii-vi-ii-V (jazz)
-- "Play" button plays the chord tones as arpeggiated synth sounds using the existing `useReferenceTone` pattern (oscillator per note)
-- Each chord shows its `ChordDiagram` on tap
+It also polls `getSharedAudioContextSync().state` + `sampleRate` once per second and reads `liveMasters.size` (exported as a getter from `useMasterVolume.ts`).
 
-### 3. Rhythm Samples to Practice
-**New file: `src/components/practice/RhythmPatterns.tsx`**
-- Curated rhythm patterns synthesized via Web Audio (kick, snare, hi-hat using the existing drum synth from `useSmartDrummer`):
-  - Basic Rock, Shuffle Blues, Funk 16th, Reggae Skank, Bossa Nova, Jazz Swing, Punk Fast 4, Metal Double Kick, Country Train, Hip-Hop Boom Bap
-- Each pattern has: name, time signature, BPM range, visual beat grid
-- Play/Stop with adjustable tempo
-- Uses the existing `useBpmSync` store for tempo coordination
+### 2. Instrumentation (minimal, surgical)
 
-### 4. Guitar Riffs, Licks & Scales
-**New file: `src/components/practice/RiffsAndScales.tsx`**
-- Two sub-tabs: "Riffs & Licks" and "Scales"
+Add `trackSource(...)` calls at the points that already create/stop audio sources:
 
-**Riffs & Licks:**
-- Curated list of iconic riff patterns with tablature notation displayed as a simple text-based tab grid:
-  - Smoke on the Water, Iron Man, Seven Nation Army, Sunshine of Your Love, Back in Black, Enter Sandman, Sweet Child O' Mine, Purple Haze, Day Tripper, Come As You Are, Crazy Train, Walk This Way
-- Each shows: tab notation, suggested BPM, difficulty level
-- "Play" button synthesizes the notes using oscillators at the correct frequencies and timing
-- Slow-down control (50%-100% speed)
+- `src/lib/pluckedSynth.ts` → inside `playPluckedNote`, register `src` with `feature` passed via a new optional arg (default `'pluck'`).
+- `src/components/trainer/ChordLibrary.tsx` → pass `feature: 'chord-library'` when invoking pluck.
+- `src/components/sections/UtilitiesSection.tsx` → pass `feature: 'utilities'`.
+- `src/components/trainer/IntervalTrainer.tsx` → `'interval-trainer'`.
+- `src/hooks/useReferenceTone.ts`, `useMetronome.ts`, `useDrumMachine.ts`, `useSmartDrummer.ts` → wrap oscillator/buffer creation with `trackSource(feature, node)`.
+- `src/components/practice/JamSession.tsx`, `CircleOfFifths.tsx` → same.
 
-**Scales:**
-- Common scales with fretboard visualization:
-  - Minor Pentatonic, Major Pentatonic, Natural Minor, Major, Blues, Dorian, Mixolydian, Harmonic Minor, Phrygian
-- Select root note (C through B) — generates the scale degrees and fret positions
-- Visual fretboard diagram showing dot positions across 12 frets
-- "Play Scale" button plays ascending/descending notes
-- Shows interval formula (e.g., W-W-H-W-W-W-H)
+No behavior change, just observation.
 
-### 5. Practice Section Update
-**File: `src/components/sections/PracticeSection.tsx`**
-- Add 3 new tabs: "Circle of 5ths", "Rhythms", "Riffs & Scales"
-- Tab bar wraps on mobile (flex-wrap)
+### 3. UI — `src/components/diagnostics/AudioDiagnosticsPanel.tsx` (new)
 
----
+Floating bottom-right toggle button (only when a `?debug` query param is present OR a small gear in the footer toggles it — to be confirmed). When open, a fixed panel shows:
 
-### Files to Create
-1. `src/components/practice/CircleOfFifths.tsx` — Interactive circle + progressions + chord playback
-2. `src/components/practice/RhythmPatterns.tsx` — Drum pattern player with beat grid UI
-3. `src/components/practice/RiffsAndScales.tsx` — Tab viewer + scale fretboard + audio playback
-4. `src/lib/musicTheory.ts` — Data file with scale formulas, chord-in-key mappings, riff tab data
+- **Context**: state (running/suspended), sample rate, master-gain node count.
+- **Features table**: feature name • active count badge (pulses red when >0) • total started • time since last start.
+- **Live sources** (collapsible): id, feature, kind, freq, age in ms.
+- **Buttons**: "Stop all (panic)" → iterates every tracked source and calls `.stop()`; "Reset counters".
 
-### Files to Edit
-1. `src/hooks/useReferenceTone.ts` — Add `playForDuration()` method
-2. `src/components/StringIndicator.tsx` — Add "By Ear" mode toggle
-3. `src/components/sections/PracticeSection.tsx` — Add 3 new tabs
+Styled with existing semantic tokens (`bg-card`, `border-border`, `text-primary`), Orbitron/JetBrains Mono per project memory.
 
-### Technical Details
-- All audio synthesis uses Web Audio API oscillators (no external samples needed)
-- Drum sounds reuse the synth drum approach from `useSmartDrummer` (noise bursts for snare/hats, sine for kick)
-- Riff playback schedules notes via `AudioContext.currentTime` offsets for tight timing
-- Scale fretboard is an SVG with 6 strings x 12 frets, dots colored by interval degree
-- Circle of fifths is an SVG with 12 wedges, inner ring for minor keys
+### 4. Mount
 
+Mounted once in `src/pages/Index.tsx` at the root level so it overlays every section.
+
+### Out of scope
+
+- No changes to actual audio routing or the squelch fix itself.
+- No persistence/telemetry — purely an in-session debug view.
+
+### Open question
+
+Should the panel be always-visible (small collapsed pill) or hidden behind `?debug=1`? I'll default to a small collapsed pill in the corner that the user can hide, unless you prefer the query-param gate.
