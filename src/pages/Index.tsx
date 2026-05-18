@@ -195,6 +195,8 @@ const Index = () => {
         <p>High-precision strobe tuning • ±0.1 cent accuracy</p>
         <p className="font-display tracking-wider">BLEED OUT ZONE™ by JLo</p>
       </footer>
+
+      <AudioDiagnosticsPanel />
     </div>
   );
 };
