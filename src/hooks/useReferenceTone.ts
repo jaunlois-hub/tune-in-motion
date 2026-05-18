@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useAudioDucking } from './useAudioDucking';
 import { createMasterGain } from './useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 export function useReferenceTone() {
   const [playingFrequency, setPlayingFrequency] = useState<number | null>(null);
