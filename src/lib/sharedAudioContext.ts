@@ -9,6 +9,7 @@
 // other feature still holding a reference.
 
 import { registerAudioContext } from '@/hooks/useAudioDevices';
+import { installDiagnostics } from '@/lib/audioDiagnostics';
 
 let shared: AudioContext | null = null;
 
