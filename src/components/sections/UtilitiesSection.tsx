@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { NOTE_NAMES, type NoteName } from '@/lib/musicTheory';
 import { ensurePluckBuffer, playPluckedNote, type PluckedNoteHandle } from '@/lib/pluckedSynth';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 import { createMasterGain } from '@/hooks/useMasterVolume';
 
 // ============================================================
