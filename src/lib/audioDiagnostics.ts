@@ -166,11 +166,9 @@ export function panicStopAll(): number {
   const s = useAudioDiagnostics.getState();
   let stopped = 0;
   for (const entry of s.sources) {
-    const node = entry.ref.deref();
-    if (node) {
-      try { node.stop(); stopped++; } catch { /* already stopped */ }
-      try { node.disconnect(); } catch { /* already disconnected */ }
-    }
+    const node = entry.node;
+    try { node.stop(); stopped++; } catch { /* already stopped */ }
+    try { node.disconnect(); } catch { /* already disconnected */ }
   }
   // Reset active counts; keep totalStarted for history.
   const features = { ...s.features };
