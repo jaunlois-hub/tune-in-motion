@@ -252,5 +252,10 @@ export function resetDiagnosticsCounters(): void {
   for (const k of Object.keys(s.features)) {
     features[k] = { ...s.features[k], totalStarted: s.features[k].activeCount, lastStartedAt: 0 };
   }
-  useAudioDiagnostics.setState({ features, tick: s.tick + 1 });
+  useAudioDiagnostics.setState({ features, recentFreqs: [], tick: s.tick + 1 });
+}
+
+export function clearRecentFrequencies(): void {
+  const s = useAudioDiagnostics.getState();
+  useAudioDiagnostics.setState({ recentFreqs: [], tick: s.tick + 1 });
 }
