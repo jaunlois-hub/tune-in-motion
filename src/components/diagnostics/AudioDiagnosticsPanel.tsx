@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Activity, X, OctagonAlert, RotateCcw, ChevronDown } from 'lucide-react';
+import { Activity, X, OctagonAlert, RotateCcw, ChevronDown, BarChart3 } from 'lucide-react';
 import {
   useAudioDiagnostics,
   panicStopAll,
   resetDiagnosticsCounters,
+  getFrequencyHistogram,
+  getTopFrequencies,
+  SQUELCH_FREQ_HZ,
 } from '@/lib/audioDiagnostics';
 import { Button } from '@/components/ui/button';
 
