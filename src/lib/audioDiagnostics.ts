@@ -145,8 +145,13 @@ function recordStart(node: AudioScheduledSourceNode, kind: SourceKind, feature: 
   };
   const s = useAudioDiagnostics.getState();
   const prev = s.features[feature] ?? { feature, activeCount: 0, totalStarted: 0, lastStartedAt: 0 };
+  const nextRecent =
+    freq && freq > 0
+      ? [...s.recentFreqs, { freq, at: entry.startedAt, feature }].slice(-RECENT_FREQ_CAP)
+      : s.recentFreqs;
   useAudioDiagnostics.setState({
     sources: [...s.sources, entry],
+    recentFreqs: nextRecent,
     features: {
       ...s.features,
       [feature]: {
