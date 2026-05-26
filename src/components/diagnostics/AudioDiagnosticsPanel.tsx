@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Activity, X, OctagonAlert, RotateCcw, ChevronDown } from 'lucide-react';
+import { Activity, X, OctagonAlert, RotateCcw, ChevronDown, BarChart3 } from 'lucide-react';
 import {
   useAudioDiagnostics,
   panicStopAll,
   resetDiagnosticsCounters,
+  getFrequencyHistogram,
+  getTopFrequencies,
+  SQUELCH_FREQ_HZ,
 } from '@/lib/audioDiagnostics';
 import { Button } from '@/components/ui/button';
 
@@ -116,6 +119,9 @@ export function AudioDiagnosticsPanel() {
         )}
       </div>
 
+      {/* Frequency histogram (recent oscillator starts) */}
+      <FrequencyHistogramSection />
+
       {/* Live sources collapsible */}
       <div className="border-b border-border">
         <button
@@ -184,6 +190,105 @@ export function AudioDiagnosticsPanel() {
           Reset
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Recent-frequency histogram + top-frequency list.
+ * Reads from the diagnostics store via the shared `tick` so it re-renders
+ * whenever a new source is started. Log-spaced bins from 40 Hz → 12 kHz,
+ * with bins at/above SQUELCH_FREQ_HZ tinted as a warning to surface
+ * runaway high-frequency oscillators at a glance.
+ */
+function FrequencyHistogramSection() {
+  const [collapsed, setCollapsed] = useState(false);
+  // Subscribe to tick so this component re-renders on every audio event.
+  useAudioDiagnostics((s) => s.tick);
+  const bins = getFrequencyHistogram();
+  const top = getTopFrequencies(5);
+  const max = Math.max(1, ...bins.map((b) => b.count));
+  const totalSamples = bins.reduce((sum, b) => sum + b.count, 0);
+  const dangerCount = bins.filter((b) => b.dangerous).reduce((s, b) => s + b.count, 0);
+
+  return (
+    <div className="border-b border-border">
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+      >
+        <span className="flex items-center gap-1.5">
+          <BarChart3 className="w-3 h-3" />
+          Frequency histogram ({totalSamples})
+          {dangerCount > 0 && (
+            <span className="ml-1 px-1.5 rounded bg-destructive/20 text-destructive normal-case tracking-normal">
+              {dangerCount} ≥{SQUELCH_FREQ_HZ / 1000}kHz
+            </span>
+          )}
+        </span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
+      {!collapsed && (
+        <div className="px-3 pb-2 space-y-2">
+          {totalSamples === 0 ? (
+            <div className="text-muted-foreground italic">No frequency samples yet.</div>
+          ) : (
+            <>
+              {/* Bars */}
+              <div className="flex items-end gap-[2px] h-20" aria-label="Frequency histogram">
+                {bins.map((b, i) => {
+                  const h = (b.count / max) * 100;
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 flex flex-col items-center justify-end gap-0.5"
+                      title={`${Math.round(b.minHz)}–${Math.round(b.maxHz)} Hz · ${b.count} sample(s)`}
+                    >
+                      <div
+                        className={`w-full rounded-sm transition-all ${
+                          b.dangerous ? 'bg-destructive' : 'bg-primary'
+                        } ${b.count === 0 ? 'opacity-20' : ''}`}
+                        style={{ height: `${Math.max(b.count > 0 ? 6 : 2, h)}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Axis labels: show every other to avoid clutter */}
+              <div className="flex gap-[2px] text-[9px] text-muted-foreground tabular-nums">
+                {bins.map((b, i) => (
+                  <div key={i} className="flex-1 text-center">
+                    {i % 2 === 0 ? b.label : ''}
+                  </div>
+                ))}
+              </div>
+              {/* Top frequencies list */}
+              {top.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    Top frequencies
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {top.map((t) => (
+                      <span
+                        key={t.freq}
+                        className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums ${
+                          t.dangerous
+                            ? 'bg-destructive/20 text-destructive'
+                            : 'bg-secondary text-foreground'
+                        }`}
+                      >
+                        {t.freq >= 1000 ? `${(t.freq / 1000).toFixed(2)}k` : t.freq}Hz
+                        <span className="text-muted-foreground"> ×{t.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

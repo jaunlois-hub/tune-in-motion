@@ -32,22 +32,86 @@ export interface FeatureStat {
   lastStartedAt: number;
 }
 
+export interface FreqSample {
+  freq: number;
+  at: number; // performance.now()
+  feature: string;
+}
+
 interface DiagnosticsState {
   sources: TrackedSource[];
   features: Record<string, FeatureStat>;
+  recentFreqs: FreqSample[];
   ctxState: AudioContextState | 'uninitialized';
   sampleRate: number;
   // bumped whenever anything mutates so React re-renders without deep equality
   tick: number;
 }
 
+const RECENT_FREQ_CAP = 256;
+/** Frequencies at or above this are flagged as likely-squelch in the histogram. */
+export const SQUELCH_FREQ_HZ = 4000;
+
 export const useAudioDiagnostics = create<DiagnosticsState>(() => ({
   sources: [],
   features: {},
+  recentFreqs: [],
   ctxState: 'uninitialized',
   sampleRate: 0,
   tick: 0,
 }));
+
+export interface HistogramBin {
+  label: string;
+  minHz: number;
+  maxHz: number;
+  count: number;
+  dangerous: boolean;
+}
+
+/** Log-spaced histogram of recent oscillator frequencies. */
+export function getFrequencyHistogram(
+  binCount = 14,
+  minHz = 40,
+  maxHz = 12000,
+): HistogramBin[] {
+  const { recentFreqs } = useAudioDiagnostics.getState();
+  const logMin = Math.log(minHz);
+  const logMax = Math.log(maxHz);
+  const step = (logMax - logMin) / binCount;
+  const bins: HistogramBin[] = Array.from({ length: binCount }, (_, i) => {
+    const lo = Math.exp(logMin + i * step);
+    const hi = Math.exp(logMin + (i + 1) * step);
+    const labelHz = (hi + lo) / 2;
+    const label =
+      labelHz >= 1000 ? `${(labelHz / 1000).toFixed(1)}k` : `${Math.round(labelHz)}`;
+    return { label, minHz: lo, maxHz: hi, count: 0, dangerous: lo >= SQUELCH_FREQ_HZ };
+  });
+  for (const s of recentFreqs) {
+    if (!s.freq || s.freq < minHz || s.freq >= maxHz) continue;
+    const idx = Math.min(
+      binCount - 1,
+      Math.floor((Math.log(s.freq) - logMin) / step),
+    );
+    bins[idx].count++;
+  }
+  return bins;
+}
+
+/** Aggregate the most common recent frequencies (rounded to 10 Hz). */
+export function getTopFrequencies(n = 5): { freq: number; count: number; dangerous: boolean }[] {
+  const { recentFreqs } = useAudioDiagnostics.getState();
+  const buckets = new Map<number, number>();
+  for (const s of recentFreqs) {
+    if (!s.freq) continue;
+    const rounded = Math.round(s.freq / 10) * 10;
+    buckets.set(rounded, (buckets.get(rounded) ?? 0) + 1);
+  }
+  return [...buckets.entries()]
+    .map(([freq, count]) => ({ freq, count, dangerous: freq >= SQUELCH_FREQ_HZ }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, n);
+}
 
 let nextId = 1;
 const featureStack: string[] = [];
@@ -81,8 +145,13 @@ function recordStart(node: AudioScheduledSourceNode, kind: SourceKind, feature: 
   };
   const s = useAudioDiagnostics.getState();
   const prev = s.features[feature] ?? { feature, activeCount: 0, totalStarted: 0, lastStartedAt: 0 };
+  const nextRecent =
+    freq && freq > 0
+      ? [...s.recentFreqs, { freq, at: entry.startedAt, feature }].slice(-RECENT_FREQ_CAP)
+      : s.recentFreqs;
   useAudioDiagnostics.setState({
     sources: [...s.sources, entry],
+    recentFreqs: nextRecent,
     features: {
       ...s.features,
       [feature]: {
@@ -183,5 +252,10 @@ export function resetDiagnosticsCounters(): void {
   for (const k of Object.keys(s.features)) {
     features[k] = { ...s.features[k], totalStarted: s.features[k].activeCount, lastStartedAt: 0 };
   }
-  useAudioDiagnostics.setState({ features, tick: s.tick + 1 });
+  useAudioDiagnostics.setState({ features, recentFreqs: [], tick: s.tick + 1 });
+}
+
+export function clearRecentFrequencies(): void {
+  const s = useAudioDiagnostics.getState();
+  useAudioDiagnostics.setState({ recentFreqs: [], tick: s.tick + 1 });
 }
