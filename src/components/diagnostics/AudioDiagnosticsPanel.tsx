@@ -119,6 +119,9 @@ export function AudioDiagnosticsPanel() {
         )}
       </div>
 
+      {/* Frequency histogram (recent oscillator starts) */}
+      <FrequencyHistogramSection />
+
       {/* Live sources collapsible */}
       <div className="border-b border-border">
         <button
