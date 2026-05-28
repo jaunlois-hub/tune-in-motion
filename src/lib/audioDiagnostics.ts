@@ -259,3 +259,45 @@ export function clearRecentFrequencies(): void {
   const s = useAudioDiagnostics.getState();
   useAudioDiagnostics.setState({ recentFreqs: [], tick: s.tick + 1 });
 }
+
+export interface DiagnosticsSnapshot {
+  capturedAt: string;
+  ctxState: AudioContextState | 'uninitialized';
+  sampleRate: number;
+  liveSources: Array<{
+    id: number;
+    feature: string;
+    kind: SourceKind;
+    freq?: number;
+    ageMs: number;
+  }>;
+  features: FeatureStat[];
+  recentFreqs: FreqSample[];
+  histogram: HistogramBin[];
+  topFrequencies: ReturnType<typeof getTopFrequencies>;
+  squelchThresholdHz: number;
+  userAgent: string;
+}
+
+export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot {
+  const s = useAudioDiagnostics.getState();
+  const now = performance.now();
+  return {
+    capturedAt: new Date().toISOString(),
+    ctxState: s.ctxState,
+    sampleRate: s.sampleRate,
+    liveSources: s.sources.map((x) => ({
+      id: x.id,
+      feature: x.feature,
+      kind: x.kind,
+      freq: x.freq,
+      ageMs: Math.round(now - x.startedAt),
+    })),
+    features: Object.values(s.features),
+    recentFreqs: s.recentFreqs,
+    histogram: getFrequencyHistogram(),
+    topFrequencies: getTopFrequencies(10),
+    squelchThresholdHz: SQUELCH_FREQ_HZ,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+  };
+}
