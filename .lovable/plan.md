@@ -1,58 +1,82 @@
-## Audio Diagnostics Panel
+# Audio Diagnostics Panel v2
 
-A dev-style overlay that shows in real time which audio features are active (Chord Library, Utilities, Interval Trainer, Metronome, Drummer, Reference Tones, Jam, etc.), how many AudioNodes/sources they currently hold, and the shared AudioContext state. Goal: quickly see *who* is making sound when something squeals.
+Restructure the floating diagnostics overlay so the most actionable info (live activity + frequency distribution) is glanceable, and add tools to capture evidence when the squelch hits.
 
-### 1. Tracking layer — `src/lib/audioDiagnostics.ts` (new)
+## Goals
+1. Cleaner, more scannable layout with clear visual hierarchy.
+2. Auto-clear of recent frequency samples on a configurable timer.
+3. One-click JSON snapshot export of the current diagnostic state.
 
-A tiny Zustand store + helper API:
+## UI restructure (`AudioDiagnosticsPanel.tsx`)
 
-```ts
-type SourceKind = 'buffer' | 'oscillator' | 'media' | 'other';
-interface ActiveSource { id; feature; kind; freq?; startedAt; note?; }
-interface FeatureStat  { feature; activeCount; totalStarted; lastStartedAt; }
+New layout, top → bottom:
 
-trackSource(feature, node, meta?) → returns id; auto-removes on node.onended
-untrackSource(id)
-useAudioDiagnostics() → { sources, features, ctxState, sampleRate, masterCount }
+```text
+┌─ Header ───────────────────────────────┐
+│ ● AUDIO DIAGNOSTICS    [snapshot] [×] │
+├─ Status strip (compact, 1 row) ───────┤
+│ ctx:running  44.1k  live:3  ⚠2≥4kHz   │
+├─ Tabs ────────────────────────────────┤
+│ [ Activity ] [ Frequencies ] [ Sources ]
+├─ Tab content (scrolls) ───────────────┤
+│ …per-tab content…                     │
+├─ Auto-clear controls ─────────────────┤
+│ Auto-clear: [Off|5s|15s|60s]  next 12s│
+├─ Footer actions ──────────────────────┤
+│ [PANIC STOP]   [Reset]   [Clear freqs]│
+└───────────────────────────────────────┘
 ```
 
-It wraps `node.onended` (chaining any existing handler) so cleanup is automatic for `AudioBufferSourceNode` / `OscillatorNode`. For long-lived nodes (delays, gains in a pedal chain) the caller gets an explicit `untrackSource` handle.
+- **Header**: title + snapshot (download icon) + close. Snapshot button is always visible (primary debugging affordance).
+- **Status strip**: single dense row replacing the 3-column grid; includes a danger badge when high-freq sources are active.
+- **Tabs** (shadcn `Tabs`):
+  - *Activity* — the per-feature table (live/total/age).
+  - *Frequencies* — histogram + top-5 list (current `FrequencyHistogramSection`, restyled to fill the tab).
+  - *Sources* — live source list (no longer collapsible, fills the tab).
+- **Footer**: three actions on one row; PANIC remains the destructive emphasis.
 
-It also polls `getSharedAudioContextSync().state` + `sampleRate` once per second and reads `liveMasters.size` (exported as a getter from `useMasterVolume.ts`).
+Widen panel to 400px and let tab content scroll inside a fixed-height region so the footer never moves.
 
-### 2. Instrumentation (minimal, surgical)
+## Auto-clear timer
 
-Add `trackSource(...)` calls at the points that already create/stop audio sources:
+State held in the panel component:
+- `autoClearMs: 0 | 5000 | 15000 | 60000` (0 = off), persisted in `localStorage` under `audio-diag.autoClear`.
+- When >0, run a `setInterval` that calls `clearRecentFrequencies()` every N ms and updates a `nextClearAt` timestamp shown as a small countdown ("next 12s").
+- Cleared on unmount / when set back to Off.
 
-- `src/lib/pluckedSynth.ts` → inside `playPluckedNote`, register `src` with `feature` passed via a new optional arg (default `'pluck'`).
-- `src/components/trainer/ChordLibrary.tsx` → pass `feature: 'chord-library'` when invoking pluck.
-- `src/components/sections/UtilitiesSection.tsx` → pass `feature: 'utilities'`.
-- `src/components/trainer/IntervalTrainer.tsx` → `'interval-trainer'`.
-- `src/hooks/useReferenceTone.ts`, `useMetronome.ts`, `useDrumMachine.ts`, `useSmartDrummer.ts` → wrap oscillator/buffer creation with `trackSource(feature, node)`.
-- `src/components/practice/JamSession.tsx`, `CircleOfFifths.tsx` → same.
+Only the recent-frequency buffer is auto-cleared. Counters and live sources are untouched (live sources self-clean via `onended`).
 
-No behavior change, just observation.
+## JSON snapshot export
 
-### 3. UI — `src/components/diagnostics/AudioDiagnosticsPanel.tsx` (new)
+Add `exportDiagnosticsSnapshot()` to `audioDiagnostics.ts`:
 
-Floating bottom-right toggle button (only when a `?debug` query param is present OR a small gear in the footer toggles it — to be confirmed). When open, a fixed panel shows:
+```ts
+export interface DiagnosticsSnapshot {
+  capturedAt: string;        // ISO
+  ctxState: string;
+  sampleRate: number;
+  liveSources: Array<{ id; feature; kind; freq?; ageMs }>;
+  features: FeatureStat[];
+  recentFreqs: FreqSample[];
+  histogram: HistogramBin[];
+  topFrequencies: ReturnType<typeof getTopFrequencies>;
+  userAgent: string;
+}
+export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot;
+```
 
-- **Context**: state (running/suspended), sample rate, master-gain node count.
-- **Features table**: feature name • active count badge (pulses red when >0) • total started • time since last start.
-- **Live sources** (collapsible): id, feature, kind, freq, age in ms.
-- **Buttons**: "Stop all (panic)" → iterates every tracked source and calls `.stop()`; "Reset counters".
+Panel's snapshot button:
+- Builds the snapshot, serializes with `JSON.stringify(snap, null, 2)`.
+- Triggers a download as `audio-diagnostics-<ISO>.json` via a Blob + `<a download>` click.
+- Also copies to clipboard (best-effort) and toasts "Snapshot saved" via `sonner` if available, else `console.info`.
 
-Styled with existing semantic tokens (`bg-card`, `border-border`, `text-primary`), Orbitron/JetBrains Mono per project memory.
+## Files
 
-### 4. Mount
+- **Edit** `src/lib/audioDiagnostics.ts` — add `buildDiagnosticsSnapshot()` + `DiagnosticsSnapshot` type.
+- **Rewrite** `src/components/diagnostics/AudioDiagnosticsPanel.tsx` — new tabbed layout, auto-clear controls, snapshot download button. Reuses existing store/selectors; no behavior change to tracking layer.
 
-Mounted once in `src/pages/Index.tsx` at the root level so it overlays every section.
+## Out of scope
 
-### Out of scope
-
-- No changes to actual audio routing or the squelch fix itself.
-- No persistence/telemetry — purely an in-session debug view.
-
-### Open question
-
-Should the panel be always-visible (small collapsed pill) or hidden behind `?debug=1`? I'll default to a small collapsed pill in the corner that the user can hide, unless you prefer the query-param gate.
+- No changes to instrumentation, `sharedAudioContext`, or any feature audio code.
+- No server upload of snapshots — local download only.
+- No persistence of the snapshot list; each export is a one-shot file.
