@@ -27,6 +27,15 @@ import {
   type FeedbackWarning,
 } from '@/lib/audioDiagnostics';
 
+// WeakRef is available in all modern browsers (ES2021) but isn't in our
+// tsconfig lib list. Declare the minimal shape we use to avoid widening
+// the project-wide lib config just for this file.
+declare class WeakRef<T extends object> {
+  constructor(target: T);
+  deref(): T | undefined;
+}
+
+
 type NodeKind = 'delay' | 'gain' | 'filter';
 
 interface TrackedNode {

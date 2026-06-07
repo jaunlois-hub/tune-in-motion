@@ -357,7 +357,9 @@ export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot {
     })),
     features: Object.values(s.features),
     recentFreqs: s.recentFreqs,
+    feedbackWarnings: s.feedbackWarnings,
     histogram: getFrequencyHistogram(),
+
     topFrequencies: getTopFrequencies(10),
     squelchThresholdHz: SQUELCH_FREQ_HZ,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
