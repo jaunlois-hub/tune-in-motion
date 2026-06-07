@@ -38,10 +38,24 @@ export interface FreqSample {
   feature: string;
 }
 
+export interface FeedbackWarning {
+  /** Stable hash of delayId + gainId so repeated detections dedupe. */
+  id: string;
+  feature: string;
+  delayId: number;
+  gainId: number;
+  gainValue: number;
+  delayTimeSec: number;
+  pathLength: number;
+  detectedAt: number;
+  dismissed?: boolean;
+}
+
 interface DiagnosticsState {
   sources: TrackedSource[];
   features: Record<string, FeatureStat>;
   recentFreqs: FreqSample[];
+  feedbackWarnings: FeedbackWarning[];
   ctxState: AudioContextState | 'uninitialized';
   sampleRate: number;
   // bumped whenever anything mutates so React re-renders without deep equality
@@ -56,10 +70,12 @@ export const useAudioDiagnostics = create<DiagnosticsState>(() => ({
   sources: [],
   features: {},
   recentFreqs: [],
+  feedbackWarnings: [],
   ctxState: 'uninitialized',
   sampleRate: 0,
   tick: 0,
 }));
+
 
 export interface HistogramBin {
   label: string;
