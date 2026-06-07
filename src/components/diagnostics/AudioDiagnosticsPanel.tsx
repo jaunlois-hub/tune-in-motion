@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, X, OctagonAlert, RotateCcw, BarChart3, Download, Eraser, Timer } from 'lucide-react';
+import { Activity, X, OctagonAlert, RotateCcw, BarChart3, Download, Eraser, Timer, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useAudioDiagnostics,
@@ -9,10 +9,13 @@ import {
   getFrequencyHistogram,
   getTopFrequencies,
   buildDiagnosticsSnapshot,
+  dismissFeedbackWarning,
+  clearFeedbackWarnings,
   SQUELCH_FREQ_HZ,
 } from '@/lib/audioDiagnostics';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
 
 const AUTO_CLEAR_KEY = 'audio-diag.autoClear';
 const AUTO_CLEAR_OPTIONS: { label: string; ms: number }[] = [
@@ -44,7 +47,7 @@ function downloadSnapshot() {
 
 export function AudioDiagnosticsPanel() {
   const [open, setOpen] = useState(false);
-  const { sources, features, ctxState, sampleRate } = useAudioDiagnostics();
+  const { sources, features, ctxState, sampleRate, feedbackWarnings } = useAudioDiagnostics();
 
   // Tick for age/countdown re-renders.
   const [, setNow] = useState(0);
