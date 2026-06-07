@@ -279,6 +279,47 @@ export function clearRecentFrequencies(): void {
   useAudioDiagnostics.setState({ recentFreqs: [], tick: s.tick + 1 });
 }
 
+/** Idempotent insert/update for a feedback warning (deduped by id). */
+export function reportFeedbackWarning(w: FeedbackWarning): void {
+  const s = useAudioDiagnostics.getState();
+  const existing = s.feedbackWarnings.find((x) => x.id === w.id);
+  let next: FeedbackWarning[];
+  if (existing) {
+    if (existing.dismissed && existing.gainValue === w.gainValue) return;
+    next = s.feedbackWarnings.map((x) =>
+      x.id === w.id ? { ...x, gainValue: w.gainValue, delayTimeSec: w.delayTimeSec, dismissed: false } : x,
+    );
+  } else {
+    next = [...s.feedbackWarnings, w];
+  }
+  useAudioDiagnostics.setState({ feedbackWarnings: next, tick: s.tick + 1 });
+}
+
+export function dismissFeedbackWarning(id: string): void {
+  const s = useAudioDiagnostics.getState();
+  useAudioDiagnostics.setState({
+    feedbackWarnings: s.feedbackWarnings.filter((x) => x.id !== id),
+    tick: s.tick + 1,
+  });
+}
+
+export function clearFeedbackWarnings(): void {
+  const s = useAudioDiagnostics.getState();
+  if (!s.feedbackWarnings.length) return;
+  useAudioDiagnostics.setState({ feedbackWarnings: [], tick: s.tick + 1 });
+}
+
+/** Drop warnings whose delay or gain node id is in the provided set
+ *  (called by the graph inspector when a node is garbage-collected). */
+export function removeFeedbackWarningsForNodes(deadIds: number[]): void {
+  if (!deadIds.length) return;
+  const s = useAudioDiagnostics.getState();
+  const dead = new Set(deadIds);
+  const next = s.feedbackWarnings.filter((w) => !dead.has(w.delayId) && !dead.has(w.gainId));
+  if (next.length === s.feedbackWarnings.length) return;
+  useAudioDiagnostics.setState({ feedbackWarnings: next, tick: s.tick + 1 });
+}
+
 export interface DiagnosticsSnapshot {
   capturedAt: string;
   ctxState: AudioContextState | 'uninitialized';
@@ -292,11 +333,13 @@ export interface DiagnosticsSnapshot {
   }>;
   features: FeatureStat[];
   recentFreqs: FreqSample[];
+  feedbackWarnings: FeedbackWarning[];
   histogram: HistogramBin[];
   topFrequencies: ReturnType<typeof getTopFrequencies>;
   squelchThresholdHz: number;
   userAgent: string;
 }
+
 
 export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot {
   const s = useAudioDiagnostics.getState();
