@@ -153,12 +153,65 @@ export function AudioDiagnosticsPanel() {
         <span className="tabular-nums">
           live <span className={totalActive > 0 ? 'text-primary' : ''}>{totalActive}</span>
         </span>
-        {dangerLive > 0 && (
-          <span className="ml-auto px-1.5 rounded bg-destructive/20 text-destructive normal-case tracking-normal">
-            ⚠ {dangerLive} ≥{SQUELCH_FREQ_HZ / 1000}kHz
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1">
+          {dangerLive > 0 && (
+            <span className="px-1.5 rounded bg-destructive/20 text-destructive normal-case tracking-normal">
+              ⚠ {dangerLive} ≥{SQUELCH_FREQ_HZ / 1000}kHz
+            </span>
+          )}
+          {fbCount > 0 && (
+            <span className="px-1.5 rounded bg-destructive/20 text-destructive normal-case tracking-normal">
+              ↻ {fbCount} feedback loop{fbCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Feedback warnings (only when present) */}
+      {fbCount > 0 && (
+        <div className="px-3 py-2 border-b border-destructive/40 bg-destructive/5 space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-wider">
+            <span className="flex items-center gap-1 text-destructive">
+              <AlertTriangle className="w-3 h-3" /> Feedback loops detected
+            </span>
+            <button
+              onClick={() => clearFeedbackWarnings()}
+              className="text-muted-foreground hover:text-foreground normal-case tracking-normal"
+            >
+              clear all
+            </button>
+          </div>
+          {feedbackWarnings.map((w) => {
+            const high = w.gainValue >= 0.95;
+            const ageS = Math.max(0, Math.round((performance.now() - w.detectedAt) / 1000));
+            return (
+              <div
+                key={w.id}
+                className={`flex items-start justify-between gap-2 px-2 py-1 rounded border ${high ? 'border-destructive/60 bg-destructive/10' : 'border-border bg-card/40'}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className={`flex items-center gap-1.5 ${high ? 'text-destructive' : 'text-foreground'}`}>
+                    <span className="truncate font-semibold">{w.feature}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="tabular-nums">delay#{w.delayId} → gain#{w.gainId} (×{w.gainValue.toFixed(3)}) → delay#{w.delayId}</span>
+                  </div>
+                  <div className="text-muted-foreground tabular-nums text-[10px] mt-0.5">
+                    delay {(w.delayTimeSec * 1000).toFixed(2)} ms · path {w.pathLength} · {ageS}s ago
+                  </div>
+                </div>
+                <button
+                  onClick={() => dismissFeedbackWarning(w.id)}
+                  className="text-muted-foreground hover:text-foreground text-[10px] uppercase tracking-wider"
+                  aria-label="Dismiss warning"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
 
       {/* Tabs */}
       <Tabs defaultValue="freq" className="flex-1 flex flex-col min-h-0">
