@@ -38,10 +38,24 @@ export interface FreqSample {
   feature: string;
 }
 
+export interface FeedbackWarning {
+  /** Stable hash of delayId + gainId so repeated detections dedupe. */
+  id: string;
+  feature: string;
+  delayId: number;
+  gainId: number;
+  gainValue: number;
+  delayTimeSec: number;
+  pathLength: number;
+  detectedAt: number;
+  dismissed?: boolean;
+}
+
 interface DiagnosticsState {
   sources: TrackedSource[];
   features: Record<string, FeatureStat>;
   recentFreqs: FreqSample[];
+  feedbackWarnings: FeedbackWarning[];
   ctxState: AudioContextState | 'uninitialized';
   sampleRate: number;
   // bumped whenever anything mutates so React re-renders without deep equality
@@ -56,10 +70,12 @@ export const useAudioDiagnostics = create<DiagnosticsState>(() => ({
   sources: [],
   features: {},
   recentFreqs: [],
+  feedbackWarnings: [],
   ctxState: 'uninitialized',
   sampleRate: 0,
   tick: 0,
 }));
+
 
 export interface HistogramBin {
   label: string;
@@ -117,9 +133,12 @@ let nextId = 1;
 const featureStack: string[] = [];
 const installedContexts = new WeakSet<AudioContext>();
 
-function currentFeature(): string {
+/** Current feature label from the withAudioFeature stack. Exported so the
+ *  graph inspector can attribute newly-created nodes to the same feature. */
+export function currentFeature(): string {
   return featureStack[featureStack.length - 1] ?? 'unknown';
 }
+
 
 /** Push a feature label for the duration of `fn`. Any AudioNodes created
  *  synchronously inside `fn` (or shortly after via the patched factory) will
@@ -260,6 +279,47 @@ export function clearRecentFrequencies(): void {
   useAudioDiagnostics.setState({ recentFreqs: [], tick: s.tick + 1 });
 }
 
+/** Idempotent insert/update for a feedback warning (deduped by id). */
+export function reportFeedbackWarning(w: FeedbackWarning): void {
+  const s = useAudioDiagnostics.getState();
+  const existing = s.feedbackWarnings.find((x) => x.id === w.id);
+  let next: FeedbackWarning[];
+  if (existing) {
+    if (existing.dismissed && existing.gainValue === w.gainValue) return;
+    next = s.feedbackWarnings.map((x) =>
+      x.id === w.id ? { ...x, gainValue: w.gainValue, delayTimeSec: w.delayTimeSec, dismissed: false } : x,
+    );
+  } else {
+    next = [...s.feedbackWarnings, w];
+  }
+  useAudioDiagnostics.setState({ feedbackWarnings: next, tick: s.tick + 1 });
+}
+
+export function dismissFeedbackWarning(id: string): void {
+  const s = useAudioDiagnostics.getState();
+  useAudioDiagnostics.setState({
+    feedbackWarnings: s.feedbackWarnings.filter((x) => x.id !== id),
+    tick: s.tick + 1,
+  });
+}
+
+export function clearFeedbackWarnings(): void {
+  const s = useAudioDiagnostics.getState();
+  if (!s.feedbackWarnings.length) return;
+  useAudioDiagnostics.setState({ feedbackWarnings: [], tick: s.tick + 1 });
+}
+
+/** Drop warnings whose delay or gain node id is in the provided set
+ *  (called by the graph inspector when a node is garbage-collected). */
+export function removeFeedbackWarningsForNodes(deadIds: number[]): void {
+  if (!deadIds.length) return;
+  const s = useAudioDiagnostics.getState();
+  const dead = new Set(deadIds);
+  const next = s.feedbackWarnings.filter((w) => !dead.has(w.delayId) && !dead.has(w.gainId));
+  if (next.length === s.feedbackWarnings.length) return;
+  useAudioDiagnostics.setState({ feedbackWarnings: next, tick: s.tick + 1 });
+}
+
 export interface DiagnosticsSnapshot {
   capturedAt: string;
   ctxState: AudioContextState | 'uninitialized';
@@ -273,11 +333,13 @@ export interface DiagnosticsSnapshot {
   }>;
   features: FeatureStat[];
   recentFreqs: FreqSample[];
+  feedbackWarnings: FeedbackWarning[];
   histogram: HistogramBin[];
   topFrequencies: ReturnType<typeof getTopFrequencies>;
   squelchThresholdHz: number;
   userAgent: string;
 }
+
 
 export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot {
   const s = useAudioDiagnostics.getState();
@@ -295,7 +357,9 @@ export function buildDiagnosticsSnapshot(): DiagnosticsSnapshot {
     })),
     features: Object.values(s.features),
     recentFreqs: s.recentFreqs,
+    feedbackWarnings: s.feedbackWarnings,
     histogram: getFrequencyHistogram(),
+
     topFrequencies: getTopFrequencies(10),
     squelchThresholdHz: SQUELCH_FREQ_HZ,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',

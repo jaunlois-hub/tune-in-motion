@@ -10,6 +10,8 @@
 
 import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { installDiagnostics } from '@/lib/audioDiagnostics';
+import { installGraphInspector } from '@/lib/audioGraphInspector';
+
 
 let shared: AudioContext | null = null;
 
@@ -24,7 +26,9 @@ export async function getSharedAudioContext(): Promise<AudioContext> {
     shared = new AudioContext();
     registerAudioContext(shared);
     installDiagnostics(shared);
+    installGraphInspector(shared);
   }
+
   if (shared.state === 'suspended') {
     try { await shared.resume(); } catch (err) { console.warn('Shared AudioContext resume failed', err); }
   }
@@ -42,6 +46,8 @@ export function getSharedAudioContextSync(): AudioContext {
     shared = new AudioContext();
     registerAudioContext(shared);
     installDiagnostics(shared);
+    installGraphInspector(shared);
   }
+
   return shared;
 }
