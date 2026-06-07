@@ -88,6 +88,8 @@ export function AudioDiagnosticsPanel() {
     [features],
   );
 
+  const fbCount = feedbackWarnings.length;
+
   if (!open) {
     return (
       <button
@@ -100,10 +102,12 @@ export function AudioDiagnosticsPanel() {
         <span className="tabular-nums">
           {totalActive} <span className="text-muted-foreground">live</span>
           {dangerLive > 0 && <span className="ml-1 text-destructive">⚠{dangerLive}</span>}
+          {fbCount > 0 && <span className="ml-1 text-destructive">↻{fbCount}</span>}
         </span>
       </button>
     );
   }
+
 
   const countdownS =
     autoClearMs && nextClearAtRef.current
