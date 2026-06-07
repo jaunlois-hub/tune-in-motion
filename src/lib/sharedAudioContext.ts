@@ -10,6 +10,8 @@
 
 import { registerAudioContext } from '@/hooks/useAudioDevices';
 import { installDiagnostics } from '@/lib/audioDiagnostics';
+import { installGraphInspector } from '@/lib/audioGraphInspector';
+
 
 let shared: AudioContext | null = null;
 
