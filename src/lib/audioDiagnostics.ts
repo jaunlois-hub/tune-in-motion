@@ -117,9 +117,12 @@ let nextId = 1;
 const featureStack: string[] = [];
 const installedContexts = new WeakSet<AudioContext>();
 
-function currentFeature(): string {
+/** Current feature label from the withAudioFeature stack. Exported so the
+ *  graph inspector can attribute newly-created nodes to the same feature. */
+export function currentFeature(): string {
   return featureStack[featureStack.length - 1] ?? 'unknown';
 }
+
 
 /** Push a feature label for the duration of `fn`. Any AudioNodes created
  *  synchronously inside `fn` (or shortly after via the patched factory) will
