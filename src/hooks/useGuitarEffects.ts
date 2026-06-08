@@ -198,6 +198,7 @@ export function useGuitarEffects() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nodesRef = useRef<Record<string, AudioNode>>({});
   const noiseGateRafRef = useRef<number>(0);
+  const autoWahRafRef = useRef<number>(0);
   const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
