@@ -28,6 +28,13 @@ export interface EffectSettings {
   tremoloRate: number;
   octaver: number;
   octaverMix: number;
+  // ---- "weird" effects ----
+  ringMod: number;        // 0..1 wet mix
+  ringModFreq: number;    // 30..2000 Hz carrier
+  bitcrush: number;       // 0..1 wet mix
+  bitcrushBits: number;   // 2..16 bit depth
+  autoWah: number;        // 0..1 wet mix
+  autoWahSens: number;    // 0..1 envelope sensitivity
 }
 
 const defaultSettings: EffectSettings = {
@@ -41,7 +48,26 @@ const defaultSettings: EffectSettings = {
   wah: 0, wahFreq: 0.5,
   tremolo: 0, tremoloRate: 5,
   octaver: 0, octaverMix: 0.5,
+  ringMod: 0, ringModFreq: 220,
+  bitcrush: 0, bitcrushBits: 8,
+  autoWah: 0, autoWahSens: 0.5,
 };
+
+/**
+ * Bitcrusher waveshaper curve — quantizes input amplitude to 2^bits steps.
+ * Lower bits = more glitchy/lo-fi. No sample-rate reduction (would need a worklet)
+ * but bit depth alone gives that gritty digital character.
+ */
+function makeBitcrusherCurve(bits: number): Float32Array {
+  const samples = 4096;
+  const curve = new Float32Array(samples);
+  const steps = Math.max(2, Math.pow(2, Math.max(1, Math.min(16, bits))));
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
 
 /**
  * Asymmetric tube-style soft-clip with even-order harmonics for warmth
@@ -172,6 +198,7 @@ export function useGuitarEffects() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const nodesRef = useRef<Record<string, AudioNode>>({});
   const noiseGateRafRef = useRef<number>(0);
+  const autoWahRafRef = useRef<number>(0);
   const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -459,10 +486,51 @@ export function useGuitarEffects() {
       n.dryGain = ctx.createGain();
       (n.dryGain as GainNode).gain.value = 1;
 
+      // === RING MODULATOR ===
+      // Multiplies input × sine carrier. carrier gain modulated by oscillator → AM/ring mod.
+      n.ringModCarrier = ctx.createGain();
+      (n.ringModCarrier as GainNode).gain.value = 0;
+      n.ringModOsc = ctx.createOscillator();
+      (n.ringModOsc as OscillatorNode).type = 'sine';
+      (n.ringModOsc as OscillatorNode).frequency.value = settings.ringModFreq;
+      (n.ringModOsc as OscillatorNode).connect((n.ringModCarrier as GainNode).gain);
+      (n.ringModOsc as OscillatorNode).start();
+      n.ringModWet = ctx.createGain();
+      (n.ringModWet as GainNode).gain.value = settings.ringMod;
+      n.ringModDry = ctx.createGain();
+      (n.ringModDry as GainNode).gain.value = 1 - settings.ringMod * 0.6;
+
+      // === BITCRUSHER (bit-depth quantization) ===
+      n.bitcrush = ctx.createWaveShaper();
+      (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits) as Float32Array<ArrayBuffer>;
+      (n.bitcrush as WaveShaperNode).oversample = 'none'; // crunchier aliasing — intentional for this effect
+      n.bitcrushWet = ctx.createGain();
+      (n.bitcrushWet as GainNode).gain.value = settings.bitcrush;
+      n.bitcrushDry = ctx.createGain();
+      (n.bitcrushDry as GainNode).gain.value = 1 - settings.bitcrush * 0.7;
+
+      // === AUTO-WAH (envelope-follower bandpass) ===
+      // Envelope analyser sniffs pre-effect level; rAF loop sweeps the bandpass freq.
+      n.autoWahAnalyser = ctx.createAnalyser();
+      (n.autoWahAnalyser as AnalyserNode).fftSize = 256;
+      (n.autoWahAnalyser as AnalyserNode).smoothingTimeConstant = 0.6;
+      n.autoWahFilter = ctx.createBiquadFilter();
+      (n.autoWahFilter as BiquadFilterNode).type = 'bandpass';
+      (n.autoWahFilter as BiquadFilterNode).frequency.value = 400;
+      (n.autoWahFilter as BiquadFilterNode).Q.value = 5;
+      n.autoWahWet = ctx.createGain();
+      (n.autoWahWet as GainNode).gain.value = settings.autoWah;
+      n.autoWahDry = ctx.createGain();
+      (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
+
       // === Output limiter ===
       n.limiter = ctx.createDynamicsCompressor();
       const limiter = n.limiter as DynamicsCompressorNode;
       limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.001;
+      limiter.release.value = 0.05;
       limiter.knee.value = 0;
       limiter.ratio.value = 20;
       limiter.attack.value = 0.001;
@@ -555,14 +623,42 @@ export function useGuitarEffects() {
       // → tremolo
       phaserMerge.connect(n.tremoloGain);
 
+      // → ring modulator (input × sine carrier) + dry
+      (n.tremoloGain as GainNode).connect(n.ringModCarrier as GainNode);
+      (n.ringModCarrier as GainNode).connect(n.ringModWet as GainNode);
+      (n.tremoloGain as GainNode).connect(n.ringModDry as GainNode);
+      const ringModMerge = ctx.createGain();
+      n.ringModMerge = ringModMerge;
+      (n.ringModWet as GainNode).connect(ringModMerge);
+      (n.ringModDry as GainNode).connect(ringModMerge);
+
+      // → bitcrusher + dry
+      ringModMerge.connect(n.bitcrush as WaveShaperNode);
+      (n.bitcrush as WaveShaperNode).connect(n.bitcrushWet as GainNode);
+      ringModMerge.connect(n.bitcrushDry as GainNode);
+      const bitcrushMerge = ctx.createGain();
+      n.bitcrushMerge = bitcrushMerge;
+      (n.bitcrushWet as GainNode).connect(bitcrushMerge);
+      (n.bitcrushDry as GainNode).connect(bitcrushMerge);
+
+      // → auto-wah envelope follower (analyser taps pre-filter, rAF sweeps freq)
+      bitcrushMerge.connect(n.autoWahAnalyser as AnalyserNode);
+      bitcrushMerge.connect(n.autoWahFilter as BiquadFilterNode);
+      (n.autoWahFilter as BiquadFilterNode).connect(n.autoWahWet as GainNode);
+      bitcrushMerge.connect(n.autoWahDry as GainNode);
+      const autoWahMerge = ctx.createGain();
+      n.autoWahMerge = autoWahMerge;
+      (n.autoWahWet as GainNode).connect(autoWahMerge);
+      (n.autoWahDry as GainNode).connect(autoWahMerge);
+
       // → delay (with filtered feedback)
-      (n.tremoloGain as GainNode).connect(n.delay as DelayNode);
+      autoWahMerge.connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
       (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
-      (n.tremoloGain as GainNode).connect(n.dryGain as GainNode);
+      autoWahMerge.connect(n.dryGain as GainNode);
 
       // → reverb → limiter → output
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
@@ -614,6 +710,30 @@ export function useGuitarEffects() {
       };
       noiseGateRafRef.current = requestAnimationFrame(pollGate);
 
+      // === AUTO-WAH: rAF envelope follower modulating bandpass freq ===
+      const wahData = new Uint8Array((n.autoWahAnalyser as AnalyserNode).frequencyBinCount);
+      let wahEnv = 0;
+      const pollWah = () => {
+        if (!audioContextRef.current) return;
+        const an = nodesRef.current.autoWahAnalyser as AnalyserNode | undefined;
+        const filt = nodesRef.current.autoWahFilter as BiquadFilterNode | undefined;
+        if (!an || !filt) return;
+        an.getByteTimeDomainData(wahData);
+        let peak = 0;
+        for (let i = 0; i < wahData.length; i++) {
+          const v = Math.abs(wahData[i] - 128) / 128;
+          if (v > peak) peak = v;
+        }
+        // Smooth envelope (attack faster than release)
+        const target = peak;
+        wahEnv += (target - wahEnv) * (target > wahEnv ? 0.35 : 0.06);
+        const sens = settingsRef.current.autoWahSens;
+        const freq = 200 + Math.min(1, wahEnv * (1 + sens * 5)) * 2800;
+        filt.frequency.setTargetAtTime(freq, audioContextRef.current!.currentTime, 0.01);
+        autoWahRafRef.current = requestAnimationFrame(pollWah);
+      };
+      autoWahRafRef.current = requestAnimationFrame(pollWah);
+
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
@@ -625,7 +745,8 @@ export function useGuitarEffects() {
 
   const stop = useCallback(() => {
     if (noiseGateRafRef.current) cancelAnimationFrame(noiseGateRafRef.current);
-    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo'].forEach(k => {
+    if (autoWahRafRef.current) cancelAnimationFrame(autoWahRafRef.current);
+    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc'].forEach(k => {
       try { (nodesRef.current[k] as OscillatorNode)?.stop(); } catch { /* already stopped */ }
     });
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -694,6 +815,17 @@ export function useGuitarEffects() {
     if (n.tremoloGain) (n.tremoloGain as GainNode).gain.value = 1 - settings.tremolo * 0.5;
     if (n.tremoloLfoGain) (n.tremoloLfoGain as GainNode).gain.value = settings.tremolo * 0.5;
     if (n.tremoloLfo) (n.tremoloLfo as OscillatorNode).frequency.value = settings.tremoloRate;
+    // Ring modulator
+    if (n.ringModWet) (n.ringModWet as GainNode).gain.value = settings.ringMod;
+    if (n.ringModDry) (n.ringModDry as GainNode).gain.value = 1 - settings.ringMod * 0.6;
+    if (n.ringModOsc) (n.ringModOsc as OscillatorNode).frequency.value = settings.ringModFreq;
+    // Bitcrusher
+    if (n.bitcrush) (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits) as Float32Array<ArrayBuffer>;
+    if (n.bitcrushWet) (n.bitcrushWet as GainNode).gain.value = settings.bitcrush;
+    if (n.bitcrushDry) (n.bitcrushDry as GainNode).gain.value = 1 - settings.bitcrush * 0.7;
+    // Auto-wah (depth is mix; freq sweep handled by rAF using autoWahSens ref)
+    if (n.autoWahWet) (n.autoWahWet as GainNode).gain.value = settings.autoWah;
+    if (n.autoWahDry) (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
     // Cabinet type — IR path: swap convolver buffer; biquad path: retune filters.
     if (n.cabConvolver) {
       const buf = cabBuffersRef.current[cabinetType];

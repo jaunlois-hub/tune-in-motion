@@ -49,7 +49,7 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
@@ -58,6 +58,7 @@ const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] =
   { id: 'modulation', label: 'Modulation', icon: '🌊' },
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
+  { id: 'weird', label: 'Weird', icon: '👽' },
 ];
 
 const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
@@ -95,6 +96,14 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'octaver', label: 'Octaver' },
     { key: 'octaverMix', label: 'Oct Mix' },
   ],
+  weird: [
+    { key: 'ringMod', label: 'Ring Mod' },
+    { key: 'ringModFreq', label: 'RM Freq', min: 30, max: 2000, unit: 'Hz', step: 1 },
+    { key: 'bitcrush', label: 'Bitcrush' },
+    { key: 'bitcrushBits', label: 'Bits', min: 2, max: 16, step: 1 },
+    { key: 'autoWah', label: 'Auto-Wah' },
+    { key: 'autoWahSens', label: 'AW Sens' },
+  ],
 };
 
 const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSettings> }[] = [
@@ -104,6 +113,10 @@ const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSett
   { name: 'Metal', emoji: '🤘', settings: { distortion: 0.75, gain: 0.9, reverb: 0.1, delay: 0, chorus: 0, compressor: 0.4, noiseGate: 0.5, eqBass: 0.6, eqMid: 0.35, eqTreble: 0.7, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
   { name: 'Ambient', emoji: '🌊', settings: { distortion: 0.1, gain: 0.6, reverb: 0.7, delay: 0.5, delayTime: 0.45, chorus: 0.25, compressor: 0.2, eqBass: 0.5, eqMid: 0.5, eqTreble: 0.6, wah: 0, flanger: 0, phaser: 0.15, tremolo: 0.1, tremoloRate: 2, octaver: 0 } },
   { name: 'Blues', emoji: '🎷', settings: { distortion: 0.25, gain: 0.75, reverb: 0.2, delay: 0.1, chorus: 0, compressor: 0.2, eqBass: 0.55, eqMid: 0.6, eqTreble: 0.5, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Robot', emoji: '🤖', settings: { distortion: 0.2, gain: 0.7, reverb: 0.15, delay: 0.1, delayTime: 0.25, ringMod: 0.7, ringModFreq: 180, bitcrush: 0.2, bitcrushBits: 6, compressor: 0.3, eqMid: 0.6 } },
+  { name: 'Glitch', emoji: '👾', settings: { distortion: 0.15, gain: 0.65, reverb: 0.2, delay: 0.35, delayTime: 0.18, bitcrush: 0.85, bitcrushBits: 4, ringMod: 0.15, ringModFreq: 90, compressor: 0.35 } },
+  { name: 'Funk', emoji: '🕺', settings: { distortion: 0.1, gain: 0.75, reverb: 0.15, delay: 0, autoWah: 0.8, autoWahSens: 0.7, compressor: 0.5, eqBass: 0.45, eqMid: 0.65, eqTreble: 0.55 } },
+  { name: 'Space', emoji: '🛸', settings: { distortion: 0.2, gain: 0.6, reverb: 0.75, delay: 0.55, delayTime: 0.5, chorus: 0.3, phaser: 0.35, phaserRate: 0.4, ringMod: 0.12, ringModFreq: 880, autoWah: 0.2, autoWahSens: 0.4 } },
 ];
 
 function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
