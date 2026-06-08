@@ -485,10 +485,51 @@ export function useGuitarEffects() {
       n.dryGain = ctx.createGain();
       (n.dryGain as GainNode).gain.value = 1;
 
+      // === RING MODULATOR ===
+      // Multiplies input × sine carrier. carrier gain modulated by oscillator → AM/ring mod.
+      n.ringModCarrier = ctx.createGain();
+      (n.ringModCarrier as GainNode).gain.value = 0;
+      n.ringModOsc = ctx.createOscillator();
+      (n.ringModOsc as OscillatorNode).type = 'sine';
+      (n.ringModOsc as OscillatorNode).frequency.value = settings.ringModFreq;
+      (n.ringModOsc as OscillatorNode).connect((n.ringModCarrier as GainNode).gain);
+      (n.ringModOsc as OscillatorNode).start();
+      n.ringModWet = ctx.createGain();
+      (n.ringModWet as GainNode).gain.value = settings.ringMod;
+      n.ringModDry = ctx.createGain();
+      (n.ringModDry as GainNode).gain.value = 1 - settings.ringMod * 0.6;
+
+      // === BITCRUSHER (bit-depth quantization) ===
+      n.bitcrush = ctx.createWaveShaper();
+      (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits) as Float32Array<ArrayBuffer>;
+      (n.bitcrush as WaveShaperNode).oversample = 'none'; // crunchier aliasing — intentional for this effect
+      n.bitcrushWet = ctx.createGain();
+      (n.bitcrushWet as GainNode).gain.value = settings.bitcrush;
+      n.bitcrushDry = ctx.createGain();
+      (n.bitcrushDry as GainNode).gain.value = 1 - settings.bitcrush * 0.7;
+
+      // === AUTO-WAH (envelope-follower bandpass) ===
+      // Envelope analyser sniffs pre-effect level; rAF loop sweeps the bandpass freq.
+      n.autoWahAnalyser = ctx.createAnalyser();
+      (n.autoWahAnalyser as AnalyserNode).fftSize = 256;
+      (n.autoWahAnalyser as AnalyserNode).smoothingTimeConstant = 0.6;
+      n.autoWahFilter = ctx.createBiquadFilter();
+      (n.autoWahFilter as BiquadFilterNode).type = 'bandpass';
+      (n.autoWahFilter as BiquadFilterNode).frequency.value = 400;
+      (n.autoWahFilter as BiquadFilterNode).Q.value = 5;
+      n.autoWahWet = ctx.createGain();
+      (n.autoWahWet as GainNode).gain.value = settings.autoWah;
+      n.autoWahDry = ctx.createGain();
+      (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
+
       // === Output limiter ===
       n.limiter = ctx.createDynamicsCompressor();
       const limiter = n.limiter as DynamicsCompressorNode;
       limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.001;
+      limiter.release.value = 0.05;
       limiter.knee.value = 0;
       limiter.ratio.value = 20;
       limiter.attack.value = 0.001;
