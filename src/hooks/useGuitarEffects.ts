@@ -622,14 +622,42 @@ export function useGuitarEffects() {
       // → tremolo
       phaserMerge.connect(n.tremoloGain);
 
+      // → ring modulator (input × sine carrier) + dry
+      (n.tremoloGain as GainNode).connect(n.ringModCarrier as GainNode);
+      (n.ringModCarrier as GainNode).connect(n.ringModWet as GainNode);
+      (n.tremoloGain as GainNode).connect(n.ringModDry as GainNode);
+      const ringModMerge = ctx.createGain();
+      n.ringModMerge = ringModMerge;
+      (n.ringModWet as GainNode).connect(ringModMerge);
+      (n.ringModDry as GainNode).connect(ringModMerge);
+
+      // → bitcrusher + dry
+      ringModMerge.connect(n.bitcrush as WaveShaperNode);
+      (n.bitcrush as WaveShaperNode).connect(n.bitcrushWet as GainNode);
+      ringModMerge.connect(n.bitcrushDry as GainNode);
+      const bitcrushMerge = ctx.createGain();
+      n.bitcrushMerge = bitcrushMerge;
+      (n.bitcrushWet as GainNode).connect(bitcrushMerge);
+      (n.bitcrushDry as GainNode).connect(bitcrushMerge);
+
+      // → auto-wah envelope follower (analyser taps pre-filter, rAF sweeps freq)
+      bitcrushMerge.connect(n.autoWahAnalyser as AnalyserNode);
+      bitcrushMerge.connect(n.autoWahFilter as BiquadFilterNode);
+      (n.autoWahFilter as BiquadFilterNode).connect(n.autoWahWet as GainNode);
+      bitcrushMerge.connect(n.autoWahDry as GainNode);
+      const autoWahMerge = ctx.createGain();
+      n.autoWahMerge = autoWahMerge;
+      (n.autoWahWet as GainNode).connect(autoWahMerge);
+      (n.autoWahDry as GainNode).connect(autoWahMerge);
+
       // → delay (with filtered feedback)
-      (n.tremoloGain as GainNode).connect(n.delay as DelayNode);
+      autoWahMerge.connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
       (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
-      (n.tremoloGain as GainNode).connect(n.dryGain as GainNode);
+      autoWahMerge.connect(n.dryGain as GainNode);
 
       // → reverb → limiter → output
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
