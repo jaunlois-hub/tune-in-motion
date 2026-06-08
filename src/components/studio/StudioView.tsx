@@ -49,7 +49,7 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
@@ -58,6 +58,7 @@ const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] =
   { id: 'modulation', label: 'Modulation', icon: '🌊' },
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
+  { id: 'weird', label: 'Weird', icon: '👽' },
 ];
 
 const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
