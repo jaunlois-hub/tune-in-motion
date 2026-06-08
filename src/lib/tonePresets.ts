@@ -19,6 +19,8 @@ const base: EffectSettings = {
   postEqBass: 0.5, postEqMid: 0.5, postEqTreble: 0.5,
   wah: 0, wahFreq: 0.5, tremolo: 0, tremoloRate: 5,
   octaver: 0, octaverMix: 0.5,
+  ringMod: 0, ringModFreq: 220, bitcrush: 0, bitcrushBits: 8,
+  autoWah: 0, autoWahSens: 0.5,
 };
 
 const p = (overrides: Partial<EffectSettings>): EffectSettings => ({ ...base, ...overrides });
