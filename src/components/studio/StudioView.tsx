@@ -96,6 +96,14 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'octaver', label: 'Octaver' },
     { key: 'octaverMix', label: 'Oct Mix' },
   ],
+  weird: [
+    { key: 'ringMod', label: 'Ring Mod' },
+    { key: 'ringModFreq', label: 'RM Freq', min: 30, max: 2000, unit: 'Hz', step: 1 },
+    { key: 'bitcrush', label: 'Bitcrush' },
+    { key: 'bitcrushBits', label: 'Bits', min: 2, max: 16, step: 1 },
+    { key: 'autoWah', label: 'Auto-Wah' },
+    { key: 'autoWahSens', label: 'AW Sens' },
+  ],
 };
 
 const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSettings> }[] = [
