@@ -709,6 +709,30 @@ export function useGuitarEffects() {
       };
       noiseGateRafRef.current = requestAnimationFrame(pollGate);
 
+      // === AUTO-WAH: rAF envelope follower modulating bandpass freq ===
+      const wahData = new Uint8Array((n.autoWahAnalyser as AnalyserNode).frequencyBinCount);
+      let wahEnv = 0;
+      const pollWah = () => {
+        if (!audioContextRef.current) return;
+        const an = nodesRef.current.autoWahAnalyser as AnalyserNode | undefined;
+        const filt = nodesRef.current.autoWahFilter as BiquadFilterNode | undefined;
+        if (!an || !filt) return;
+        an.getByteTimeDomainData(wahData);
+        let peak = 0;
+        for (let i = 0; i < wahData.length; i++) {
+          const v = Math.abs(wahData[i] - 128) / 128;
+          if (v > peak) peak = v;
+        }
+        // Smooth envelope (attack faster than release)
+        const target = peak;
+        wahEnv += (target - wahEnv) * (target > wahEnv ? 0.35 : 0.06);
+        const sens = settingsRef.current.autoWahSens;
+        const freq = 200 + Math.min(1, wahEnv * (1 + sens * 5)) * 2800;
+        filt.frequency.setTargetAtTime(freq, audioContextRef.current!.currentTime, 0.01);
+        autoWahRafRef.current = requestAnimationFrame(pollWah);
+      };
+      autoWahRafRef.current = requestAnimationFrame(pollWah);
+
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
