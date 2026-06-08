@@ -28,6 +28,13 @@ export interface EffectSettings {
   tremoloRate: number;
   octaver: number;
   octaverMix: number;
+  // ---- "weird" effects ----
+  ringMod: number;        // 0..1 wet mix
+  ringModFreq: number;    // 30..2000 Hz carrier
+  bitcrush: number;       // 0..1 wet mix
+  bitcrushBits: number;   // 2..16 bit depth
+  autoWah: number;        // 0..1 wet mix
+  autoWahSens: number;    // 0..1 envelope sensitivity
 }
 
 const defaultSettings: EffectSettings = {
@@ -41,7 +48,26 @@ const defaultSettings: EffectSettings = {
   wah: 0, wahFreq: 0.5,
   tremolo: 0, tremoloRate: 5,
   octaver: 0, octaverMix: 0.5,
+  ringMod: 0, ringModFreq: 220,
+  bitcrush: 0, bitcrushBits: 8,
+  autoWah: 0, autoWahSens: 0.5,
 };
+
+/**
+ * Bitcrusher waveshaper curve — quantizes input amplitude to 2^bits steps.
+ * Lower bits = more glitchy/lo-fi. No sample-rate reduction (would need a worklet)
+ * but bit depth alone gives that gritty digital character.
+ */
+function makeBitcrusherCurve(bits: number): Float32Array {
+  const samples = 4096;
+  const curve = new Float32Array(samples);
+  const steps = Math.max(2, Math.pow(2, Math.max(1, Math.min(16, bits))));
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
 
 /**
  * Asymmetric tube-style soft-clip with even-order harmonics for warmth
