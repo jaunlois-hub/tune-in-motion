@@ -815,6 +815,17 @@ export function useGuitarEffects() {
     if (n.tremoloGain) (n.tremoloGain as GainNode).gain.value = 1 - settings.tremolo * 0.5;
     if (n.tremoloLfoGain) (n.tremoloLfoGain as GainNode).gain.value = settings.tremolo * 0.5;
     if (n.tremoloLfo) (n.tremoloLfo as OscillatorNode).frequency.value = settings.tremoloRate;
+    // Ring modulator
+    if (n.ringModWet) (n.ringModWet as GainNode).gain.value = settings.ringMod;
+    if (n.ringModDry) (n.ringModDry as GainNode).gain.value = 1 - settings.ringMod * 0.6;
+    if (n.ringModOsc) (n.ringModOsc as OscillatorNode).frequency.value = settings.ringModFreq;
+    // Bitcrusher
+    if (n.bitcrush) (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits) as Float32Array<ArrayBuffer>;
+    if (n.bitcrushWet) (n.bitcrushWet as GainNode).gain.value = settings.bitcrush;
+    if (n.bitcrushDry) (n.bitcrushDry as GainNode).gain.value = 1 - settings.bitcrush * 0.7;
+    // Auto-wah (depth is mix; freq sweep handled by rAF using autoWahSens ref)
+    if (n.autoWahWet) (n.autoWahWet as GainNode).gain.value = settings.autoWah;
+    if (n.autoWahDry) (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
     // Cabinet type — IR path: swap convolver buffer; biquad path: retune filters.
     if (n.cabConvolver) {
       const buf = cabBuffersRef.current[cabinetType];
