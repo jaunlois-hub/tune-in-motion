@@ -145,7 +145,7 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
   );
 }
 
-function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset; onApply: () => void; onDelete: () => void }) {
+function CustomPresetCard({ preset, onApply, onDelete, onExport }: { preset: CustomPreset; onApply: () => void; onDelete: () => void; onExport: () => void }) {
   return (
     <motion.div
       className="text-left p-3 rounded-xl bg-accent/20 hover:bg-accent/30 border border-accent/30 hover:border-primary/30 transition-all group relative"
@@ -167,12 +167,22 @@ function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset;
           </div>
         </div>
       </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onExport(); }}
+          className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-primary transition-all"
+          title="Export preset as JSON"
+        >
+          <Download className="w-3 h-3" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
+          title="Delete preset"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
     </motion.div>
   );
 }
