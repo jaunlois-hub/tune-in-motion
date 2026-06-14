@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity } from 'lucide-react';
+import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity, Upload, Share2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -144,7 +145,7 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
   );
 }
 
-function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset; onApply: () => void; onDelete: () => void }) {
+function CustomPresetCard({ preset, onApply, onDelete, onExport }: { preset: CustomPreset; onApply: () => void; onDelete: () => void; onExport: () => void }) {
   return (
     <motion.div
       className="text-left p-3 rounded-xl bg-accent/20 hover:bg-accent/30 border border-accent/30 hover:border-primary/30 transition-all group relative"
@@ -166,12 +167,22 @@ function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset;
           </div>
         </div>
       </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onExport(); }}
+          className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-primary transition-all"
+          title="Export preset as JSON"
+        >
+          <Download className="w-3 h-3" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
+          title="Delete preset"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
     </motion.div>
   );
 }
@@ -262,7 +273,36 @@ export function StudioView() {
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
-  const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
+  const { presets: customPresets, savePreset, deletePreset, exportAll, exportPreset, importPresets } = useCustomPresets();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const result = await importPresets(file, 'merge');
+      toast({
+        title: 'Presets imported',
+        description: `Added ${result.added} of ${result.total}${result.skipped ? ` • ${result.skipped} skipped` : ''}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Invalid preset file',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleExportAll = () => {
+    if (customPresets.length === 0) {
+      toast({ title: 'Nothing to export', description: 'Save a preset first to export it.' });
+      return;
+    }
+    exportAll();
+    toast({ title: 'Presets exported', description: `${customPresets.length} preset${customPresets.length === 1 ? '' : 's'} downloaded as JSON` });
+  };
 
   const filteredPresets = useMemo(() => {
     return TONE_PRESETS.filter(p => {
@@ -635,23 +675,59 @@ export function StudioView() {
                             ))}
                           </div>
 
-                          {/* Custom Presets Section */}
-                          {filteredCustomPresets.length > 0 && (
-                            <div>
-                              <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
-                                <Star className="w-3 h-3" /> My Presets ({filteredCustomPresets.length})
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-                                {filteredCustomPresets.map((preset) => (
-                                  <CustomPresetCard
-                                    key={preset.id}
-                                    preset={preset}
-                                    onApply={() => applyCustomPreset(preset)}
-                                    onDelete={() => deletePreset(preset.id)}
-                                  />
-                                ))}
-                              </div>
+                          {/* My Presets header — always shown so import/export are reachable */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1">
+                              <Star className="w-3 h-3" /> My Presets ({customPresets.length})
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <input
+                                ref={importInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={handleImportFile}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() => importInputRef.current?.click()}
+                                title="Import presets from a JSON file"
+                              >
+                                <Upload className="w-3 h-3 mr-1" /> Import
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={handleExportAll}
+                                title="Export all custom presets as JSON"
+                              >
+                                <Share2 className="w-3 h-3 mr-1" /> Export All
+                              </Button>
                             </div>
+                          </div>
+
+                          {/* Custom Presets Section */}
+                          {filteredCustomPresets.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+                              {filteredCustomPresets.map((preset) => (
+                                <CustomPresetCard
+                                  key={preset.id}
+                                  preset={preset}
+                                  onApply={() => applyCustomPreset(preset)}
+                                  onDelete={() => deletePreset(preset.id)}
+                                  onExport={() => exportPreset(preset.id)}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground/60 italic mb-3">
+                              {customPresets.length === 0
+                                ? 'Save a preset or import a JSON file to share tones between projects.'
+                                : 'No saved presets match your search.'}
+                            </p>
                           )}
 
                           {/* Built-in Presets */}
