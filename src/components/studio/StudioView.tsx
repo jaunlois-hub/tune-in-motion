@@ -675,23 +675,59 @@ export function StudioView() {
                             ))}
                           </div>
 
-                          {/* Custom Presets Section */}
-                          {filteredCustomPresets.length > 0 && (
-                            <div>
-                              <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
-                                <Star className="w-3 h-3" /> My Presets ({filteredCustomPresets.length})
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-                                {filteredCustomPresets.map((preset) => (
-                                  <CustomPresetCard
-                                    key={preset.id}
-                                    preset={preset}
-                                    onApply={() => applyCustomPreset(preset)}
-                                    onDelete={() => deletePreset(preset.id)}
-                                  />
-                                ))}
-                              </div>
+                          {/* My Presets header — always shown so import/export are reachable */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1">
+                              <Star className="w-3 h-3" /> My Presets ({customPresets.length})
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <input
+                                ref={importInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={handleImportFile}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() => importInputRef.current?.click()}
+                                title="Import presets from a JSON file"
+                              >
+                                <Upload className="w-3 h-3 mr-1" /> Import
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={handleExportAll}
+                                title="Export all custom presets as JSON"
+                              >
+                                <Share2 className="w-3 h-3 mr-1" /> Export All
+                              </Button>
                             </div>
+                          </div>
+
+                          {/* Custom Presets Section */}
+                          {filteredCustomPresets.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+                              {filteredCustomPresets.map((preset) => (
+                                <CustomPresetCard
+                                  key={preset.id}
+                                  preset={preset}
+                                  onApply={() => applyCustomPreset(preset)}
+                                  onDelete={() => deletePreset(preset.id)}
+                                  onExport={() => exportPreset(preset.id)}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground/60 italic mb-3">
+                              {customPresets.length === 0
+                                ? 'Save a preset or import a JSON file to share tones between projects.'
+                                : 'No saved presets match your search.'}
+                            </p>
                           )}
 
                           {/* Built-in Presets */}
