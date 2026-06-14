@@ -273,7 +273,36 @@ export function StudioView() {
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
-  const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
+  const { presets: customPresets, savePreset, deletePreset, exportAll, exportPreset, importPresets } = useCustomPresets();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const result = await importPresets(file, 'merge');
+      toast({
+        title: 'Presets imported',
+        description: `Added ${result.added} of ${result.total}${result.skipped ? ` • ${result.skipped} skipped` : ''}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Invalid preset file',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleExportAll = () => {
+    if (customPresets.length === 0) {
+      toast({ title: 'Nothing to export', description: 'Save a preset first to export it.' });
+      return;
+    }
+    exportAll();
+    toast({ title: 'Presets exported', description: `${customPresets.length} preset${customPresets.length === 1 ? '' : 's'} downloaded as JSON` });
+  };
 
   const filteredPresets = useMemo(() => {
     return TONE_PRESETS.filter(p => {
