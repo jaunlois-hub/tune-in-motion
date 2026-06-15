@@ -16,8 +16,11 @@ const base: EffectSettings = {
   chorus: 0, chorusRate: 1.5, flanger: 0, flangerRate: 0.5,
   phaser: 0, phaserRate: 0.8, compressor: 0, noiseGate: 0,
   eqBass: 0.5, eqMid: 0.5, eqTreble: 0.5,
+  postEqBass: 0.5, postEqMid: 0.5, postEqTreble: 0.5,
   wah: 0, wahFreq: 0.5, tremolo: 0, tremoloRate: 5,
   octaver: 0, octaverMix: 0.5,
+  ringMod: 0, ringModFreq: 220, bitcrush: 0, bitcrushBits: 8,
+  autoWah: 0, autoWahSens: 0.5,
 };
 
 const p = (overrides: Partial<EffectSettings>): EffectSettings => ({ ...base, ...overrides });
@@ -299,7 +302,7 @@ const FUZZY_THRESHOLD = 0.75;
 
 export function matchPresetsToTitle(title: string): { preset: TonePreset; score: number }[] {
   const lower = title.toLowerCase();
-  const titleWords = lower.split(/[\s\-–—_|,.()\[\]{}'"!?&#+]+/).filter(w => w.length > 2);
+  const titleWords = lower.split(/[\s\-–—_|,.()[\]{}'"!?&#+]+/).filter(w => w.length > 2);
   const detectedGenres = detectGenres(lower);
 
   return TONE_PRESETS.map(preset => {

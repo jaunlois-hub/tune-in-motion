@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  buildAudioConstraints,
+  registerAudioContext,
+  useAudioDevicesStore,
+} from './useAudioDevices';
 
 interface PitchData {
   frequency: number;
@@ -103,6 +108,9 @@ function yinDetect(buffer: Float32Array, sampleRate: number): { frequency: numbe
 
 const HISTORY_SIZE = 10;
 const EMA_ALPHA = 0.25; // Smoother exponential moving average
+// How many silent frames before the tuner display clears. At ~60fps, 90 ≈ 1.5s.
+// Long enough to read the cents value after a note stops ringing, short enough not to feel sticky.
+const SILENCE_HOLD_FRAMES = 90;
 
 export function usePitchDetection() {
   const [isListening, setIsListening] = useState(false);
@@ -113,6 +121,7 @@ export function usePitchDetection() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const releaseCtxRef = useRef<(() => void) | null>(null);
   const historyRef = useRef<number[]>([]);
   const emaRef = useRef<number | null>(null);
   const lastNoteRef = useRef<string | null>(null);
@@ -181,7 +190,7 @@ export function usePitchDetection() {
       });
     } else {
       silenceCountRef.current++;
-      if (silenceCountRef.current > 15) {
+      if (silenceCountRef.current > SILENCE_HOLD_FRAMES) {
         setPitchData(null);
         historyRef.current = [];
         emaRef.current = null;
@@ -202,18 +211,20 @@ export function usePitchDetection() {
       noteHoldCountRef.current = 0;
       silenceCountRef.current = 0;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(
+        buildAudioConstraints(),
+      );
 
       streamRef.current = stream;
 
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
+      releaseCtxRef.current = registerAudioContext(audioContext);
+      // Chrome creates AudioContexts in 'suspended' state until a user gesture.
+      // Without resume() the analyser yields zeros and the tuner stays blank.
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 8192;
@@ -242,8 +253,12 @@ export function usePitchDetection() {
       streamRef.current = null;
     }
 
+    if (releaseCtxRef.current) {
+      releaseCtxRef.current();
+      releaseCtxRef.current = null;
+    }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch((err) => console.warn('AudioContext close failed', err));
       audioContextRef.current = null;
     }
 
@@ -262,6 +277,21 @@ export function usePitchDetection() {
       stopListening();
     };
   }, [stopListening]);
+
+  // Restart the stream automatically when the user picks a different input device.
+  const inputDeviceId = useAudioDevicesStore((s) => s.inputDeviceId);
+  const lastDeviceRef = useRef(inputDeviceId);
+  useEffect(() => {
+    if (!isListening) {
+      lastDeviceRef.current = inputDeviceId;
+      return;
+    }
+    if (lastDeviceRef.current === inputDeviceId) return;
+    lastDeviceRef.current = inputDeviceId;
+    stopListening();
+    const t = setTimeout(() => startListening(), 50);
+    return () => clearTimeout(t);
+  }, [inputDeviceId, isListening, startListening, stopListening]);
 
   return { isListening, pitchData, error, startListening, stopListening };
 }

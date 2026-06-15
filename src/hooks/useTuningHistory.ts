@@ -46,7 +46,9 @@ function loadSessions(): TuningSession[] {
 function saveSessions(sessions: TuningSession[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
-  } catch {}
+  } catch (err) {
+    console.warn('Failed to save tuning history', err);
+  }
 }
 
 export function useTuningHistory() {

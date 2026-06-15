@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Gauge, Disc, Headphones } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Mic, MicOff, Gauge, Disc, Headphones, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
-import { useReferenceTone } from '@/hooks/useReferenceTone';
-import { TUNINGS, type Tuning, findClosestNote } from '@/lib/tunings';
+import { TUNINGS, findClosestNote, type TuningNote } from '@/lib/tunings';
 import { StrobeWheel } from './StrobeWheel';
 import { NeedleTuner } from './NeedleTuner';
 import { NoteDisplay } from './NoteDisplay';
@@ -12,37 +11,92 @@ import { CentsMeter } from './CentsMeter';
 import { TuningSelector } from './TuningSelector';
 import { StringIndicator } from './StringIndicator';
 import { FrequencyDisplay } from './FrequencyDisplay';
+import { IntonationTargets } from './IntonationTargets';
 import { A4Calibration } from './A4Calibration';
 import { SignalStrength } from './SignalStrength';
 import { TuningHistoryPanel } from './TuningHistoryPanel';
 import { useTuningHistory } from '@/hooks/useTuningHistory';
 import { useAudioMonitoring } from '@/hooks/useAudioMonitoring';
-
-type TunerMode = 'strobe' | 'needle';
+import { useTuningSelection } from '@/hooks/useTuningSelection';
+import { useTunerPrefs } from '@/hooks/useTunerPrefs';
+import { AudioDeviceSelector } from './AudioDeviceSelector';
 
 export function GuitarTuner() {
-  const [selectedTuning, setSelectedTuning] = useState<Tuning>(TUNINGS[0]);
-  const [a4, setA4] = useState(440);
-  const [tunerMode, setTunerMode] = useState<TunerMode>('strobe');
+  const { selectedTuning, setSelectedTuning } = useTuningSelection();
+  const { a4, setA4, mode: tunerMode, setMode: setTunerMode } = useTunerPrefs();
   const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
-  const { playingFrequency, toggle: toggleTone, stop: stopTone, playForDuration } = useReferenceTone();
   const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
   const { isMonitoring, monitorVolume, startMonitoring, stopMonitoring, updateVolume } = useAudioMonitoring();
   const wasListeningRef = useRef(false);
+  // Locking the tuner to a specific string — when set, target/cents come from this string,
+  // not from the closest-note search. Used for intonation work where you don't want the
+  // tuner to switch targets if the note drifts past a 50¢ boundary.
+  const [lockedString, setLockedString] = useState<TuningNote | null>(null);
+  const toggleStringLock = useCallback((note: TuningNote) => {
+    setLockedString((prev) =>
+      prev && prev.string === note.string && prev.note === note.note && prev.octave === note.octave
+        ? null
+        : note,
+    );
+  }, []);
 
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     if (isListening) {
       stopListening();
-      stopTone();
       endSession();
     } else {
       startListening();
     }
-  };
+  }, [isListening, stopListening, endSession, startListening]);
 
-  const targetNote = pitchData
+  // Keyboard shortcuts:
+  //   Space        - start/stop tuner
+  //   M            - toggle audio monitor
+  //   [  /  ]      - previous / next tuning
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't hijack typing in inputs / selects.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleToggle();
+      } else if (e.key === 'm' || e.key === 'M') {
+        if (isMonitoring) stopMonitoring(); else startMonitoring();
+      } else if (e.key === '[' || e.key === ']') {
+        const idx = TUNINGS.findIndex((t) => t.id === selectedTuning.id);
+        if (idx === -1) return;
+        const next = e.key === ']'
+          ? TUNINGS[(idx + 1) % TUNINGS.length]
+          : TUNINGS[(idx - 1 + TUNINGS.length) % TUNINGS.length];
+        setSelectedTuning(next);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleToggle, isMonitoring, startMonitoring, stopMonitoring, selectedTuning.id, setSelectedTuning]);
+
+  // Clear lock if the tuning changes (locked string may not exist in new tuning)
+  useEffect(() => {
+    if (!lockedString) return;
+    const exists = selectedTuning.notes.some(
+      (n) => n.string === lockedString.string && n.note === lockedString.note && n.octave === lockedString.octave,
+    );
+    if (!exists) setLockedString(null);
+  }, [selectedTuning, lockedString]);
+
+  // When locked, override the target with the locked string and recompute cents
+  // against its frequency. Otherwise, fall back to the closest-note auto-detect.
+  const targetNote = lockedString ?? (pitchData
     ? findClosestNote(pitchData.frequency, selectedTuning)
+    : null);
+
+  const lockedCents = lockedString && pitchData
+    ? 1200 * Math.log2(pitchData.frequency / lockedString.frequency)
     : null;
+  // Cents to display in all the meters/strobe — use locked-cents when locking, else pitchData cents
+  const displayCents = lockedCents ?? pitchData?.cents ?? 0;
 
   const isActive = isListening && pitchData !== null;
 
@@ -78,10 +132,11 @@ export function GuitarTuner() {
 
         {/* Controls row */}
         <div className="flex flex-col items-center gap-3 w-full">
+          <AudioDeviceSelector />
           <div className="flex items-center gap-3 w-full max-w-xs">
             <TuningSelector
               selectedTuning={selectedTuning}
-              onTuningChange={(t) => { setSelectedTuning(t); stopTone(); }}
+              onTuningChange={setSelectedTuning}
             />
           </div>
           <div className="flex items-center gap-4">
@@ -114,16 +169,25 @@ export function GuitarTuner() {
           </div>
         </div>
 
-        {/* String indicator */}
+        {/* String indicator — clickable to lock the tuner to a specific string for intonation work */}
         <StringIndicator
           tuning={selectedTuning}
           currentNote={pitchData?.note || null}
           currentOctave={pitchData?.octave || null}
           isActive={isActive}
-          playingFrequency={playingFrequency}
-          onPlayTone={toggleTone}
-          onPlayForDuration={playForDuration}
+          lockedString={lockedString}
+          onToggleLock={toggleStringLock}
         />
+
+        {lockedString && (
+          <button
+            onClick={() => setLockedString(null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono bg-amber-400/15 border border-amber-400/40 text-amber-300 hover:bg-amber-400/25 transition-all"
+          >
+            <Unlock className="w-3 h-3" />
+            Unlock {lockedString.note}{lockedString.octave} ({lockedString.frequency.toFixed(2)} Hz)
+          </button>
+        )}
 
         {/* Frequency comparison */}
         <FrequencyDisplay
@@ -132,12 +196,20 @@ export function GuitarTuner() {
           isActive={isActive}
         />
 
+        {/* Intonation targets — capture-and-compare workflow when locked */}
+        <IntonationTargets
+          targetNote={targetNote}
+          currentFrequency={pitchData?.frequency || null}
+          isActive={isActive}
+          lockedString={lockedString}
+        />
+
         {/* Tuner display */}
         <div className="relative">
           {tunerMode === 'strobe' ? (
             <>
               <StrobeWheel
-                cents={pitchData?.cents || 0}
+                cents={displayCents}
                 isActive={isActive}
                 clarity={pitchData?.clarity || 0}
               />
@@ -147,14 +219,14 @@ export function GuitarTuner() {
                   octave={pitchData?.octave || null}
                   frequency={pitchData?.frequency || null}
                   isActive={isActive}
-                  cents={pitchData?.cents || 0}
+                  cents={displayCents}
                 />
               </div>
             </>
           ) : (
             <div className="flex flex-col items-center">
               <NeedleTuner
-                cents={pitchData?.cents || 0}
+                cents={displayCents}
                 isActive={isActive}
                 clarity={pitchData?.clarity || 0}
               />
@@ -164,7 +236,7 @@ export function GuitarTuner() {
                   octave={pitchData?.octave || null}
                   frequency={pitchData?.frequency || null}
                   isActive={isActive}
-                  cents={pitchData?.cents || 0}
+                  cents={displayCents}
                 />
               </div>
             </div>
@@ -172,7 +244,7 @@ export function GuitarTuner() {
         </div>
 
         {/* Cents meter */}
-        <CentsMeter cents={pitchData?.cents || 0} isActive={isActive} />
+        <CentsMeter cents={displayCents} isActive={isActive} />
 
         {/* Start/Stop button */}
         <Button

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { buildAudioConstraints, registerAudioContext } from './useAudioDevices';
 
 export interface EffectSettings {
   reverb: number;
@@ -17,12 +18,22 @@ export interface EffectSettings {
   eqBass: number;
   eqMid: number;
   eqTreble: number;
+  postEqBass: number;
+  postEqMid: number;
+  postEqTreble: number;
   wah: number;
   wahFreq: number;
   tremolo: number;
   tremoloRate: number;
   octaver: number;
   octaverMix: number;
+  // ---- "weird" effects ----
+  ringMod: number;        // 0..1 wet mix
+  ringModFreq: number;    // 30..2000 Hz carrier
+  bitcrush: number;       // 0..1 wet mix
+  bitcrushBits: number;   // 2..16 bit depth
+  autoWah: number;        // 0..1 wet mix
+  autoWahSens: number;    // 0..1 envelope sensitivity
 }
 
 const defaultSettings: EffectSettings = {
@@ -32,11 +43,34 @@ const defaultSettings: EffectSettings = {
   phaser: 0, phaserRate: 0.8,
   compressor: 0, noiseGate: 0,
   eqBass: 0.5, eqMid: 0.5, eqTreble: 0.5,
+  postEqBass: 0.5, postEqMid: 0.5, postEqTreble: 0.5,
   wah: 0, wahFreq: 0.5,
   tremolo: 0, tremoloRate: 5,
   octaver: 0, octaverMix: 0.5,
+  ringMod: 0, ringModFreq: 220,
+  bitcrush: 0, bitcrushBits: 8,
+  autoWah: 0, autoWahSens: 0.5,
 };
 
+/**
+ * Bitcrusher waveshaper curve — quantizes input amplitude to 2^bits steps.
+ * Lower bits = more glitchy/lo-fi. No sample-rate reduction (would need a worklet)
+ * but bit depth alone gives that gritty digital character.
+ */
+function makeBitcrusherCurve(bits: number): Float32Array {
+  const samples = 4096;
+  const curve = new Float32Array(samples);
+  const steps = Math.max(2, Math.pow(2, Math.max(1, Math.min(16, bits))));
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
+/**
+ * Asymmetric tube-style soft-clip with even-order harmonics for warmth
+ */
 function makeTubeDistortionCurve(amount: number): Float32Array {
   const samples = 8192;
   const curve = new Float32Array(samples);
@@ -54,6 +88,22 @@ function makeTubeDistortionCurve(amount: number): Float32Array {
     const stage2 = Math.tanh(stage1 * (1 + amount * 2)) * 0.95;
     const processed = stage2 * mix + x * (1 - mix);
     curve[i] = processed * 0.85;
+  }
+  return curve;
+}
+
+/**
+ * Power-amp stage: symmetric soft-clip, always engaged. Models class-AB push-pull tube power amp —
+ * lighter than the preamp (less harmonic generation) but adds the compression/warmth real amps have.
+ * Drive scales with preamp distortion so cranking gain pushes the power section harder, like a real amp.
+ */
+function makePowerAmpCurve(amount: number): Float32Array {
+  const samples = 4096;
+  const curve = new Float32Array(samples);
+  const drive = 1 + amount * 2.2; // amount 0.3..0.8 → drive 1.66..2.76
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = Math.tanh(x * drive) * 0.95;
   }
   return curve;
 }
@@ -133,7 +183,12 @@ let audioContext: AudioContext | null = null;
 let mediaStream: MediaStream | null = null;
 let nodes: Record<string, AudioNode> = {};
 let noiseGateRaf = 0;
+let autoWahRaf = 0;
 let isTransitioning = false;
+let releaseCtx: (() => void) | null = null;
+// Cabinet IR buffers, populated at start() if files exist in public/ir/cab/
+let cabBuffers: Partial<Record<CabinetType, AudioBuffer>> = {};
+let useCabIR = false;
 
 const MASTER_FADE_SEC = 0.06;
 const MASTER_FADE_MS = 80;
@@ -152,11 +207,13 @@ function applyParamsToNodes(settings: EffectSettings, cabinetType: CabinetType) 
   const n = nodes;
   if (!ctx || !n.limiter) return; // not yet built
 
-  // Distortion curve is discrete — swap it directly. The masterGain dip in transitions
-  // hides on/off pops; mid-session sweeps may have minor artefacts at very large jumps.
+  // Distortion + bitcrush curves are discrete — swap them directly. The masterGain dip in
+  // transitions hides on/off pops; mid-session sweeps may have minor artefacts at very large jumps.
   if (n.distortion) (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
   if (n.preGain) ramp((n.preGain as GainNode).gain, settings.distortion < 0.05 ? 1 : 1 + settings.distortion * 6);
   if (n.postDistTone) ramp((n.postDistTone as BiquadFilterNode).frequency, settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500);
+  // Power-amp drive tracks preamp distortion
+  if (n.powerAmp) (n.powerAmp as WaveShaperNode).curve = makePowerAmpCurve(0.3 + settings.distortion * 0.4);
 
   if (n.delay) ramp((n.delay as DelayNode).delayTime, settings.delayTime);
   if (n.delayGain) ramp((n.delayGain as GainNode).gain, settings.delay * 0.6);
@@ -171,6 +228,11 @@ function applyParamsToNodes(settings: EffectSettings, cabinetType: CabinetType) 
   if (n.eqBass) ramp((n.eqBass as BiquadFilterNode).gain, (settings.eqBass - 0.5) * 12);
   if (n.eqMid) ramp((n.eqMid as BiquadFilterNode).gain, (settings.eqMid - 0.5) * 12);
   if (n.eqTreble) ramp((n.eqTreble as BiquadFilterNode).gain, (settings.eqTreble - 0.5) * 12);
+
+  // Post-cab tone stack
+  if (n.postEqBass) ramp((n.postEqBass as BiquadFilterNode).gain, (settings.postEqBass - 0.5) * 12);
+  if (n.postEqMid) ramp((n.postEqMid as BiquadFilterNode).gain, (settings.postEqMid - 0.5) * 12);
+  if (n.postEqTreble) ramp((n.postEqTreble as BiquadFilterNode).gain, (settings.postEqTreble - 0.5) * 12);
 
   if (n.wah) {
     ramp((n.wah as BiquadFilterNode).frequency, 200 + settings.wahFreq * 3800);
@@ -188,9 +250,30 @@ function applyParamsToNodes(settings: EffectSettings, cabinetType: CabinetType) 
   if (n.phaserWet) ramp((n.phaserWet as GainNode).gain, settings.phaser);
   if (n.phaserLfo) ramp((n.phaserLfo as OscillatorNode).frequency, settings.phaserRate);
 
+  // Tremolo: base = 1 - depth/2, lfo amplitude = depth/2 → output swings 1-depth..1 (no overshoot)
+  if (n.tremoloGain) ramp((n.tremoloGain as GainNode).gain, 1 - settings.tremolo * 0.5);
   if (n.tremoloLfoGain) ramp((n.tremoloLfoGain as GainNode).gain, settings.tremolo * 0.5);
   if (n.tremoloLfo) ramp((n.tremoloLfo as OscillatorNode).frequency, settings.tremoloRate);
 
+  // Ring modulator
+  if (n.ringModWet) ramp((n.ringModWet as GainNode).gain, settings.ringMod);
+  if (n.ringModDry) ramp((n.ringModDry as GainNode).gain, 1 - settings.ringMod * 0.6);
+  if (n.ringModOsc) ramp((n.ringModOsc as OscillatorNode).frequency, settings.ringModFreq);
+
+  // Bitcrusher (curve swap is discrete)
+  if (n.bitcrush) (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits);
+  if (n.bitcrushWet) ramp((n.bitcrushWet as GainNode).gain, settings.bitcrush);
+  if (n.bitcrushDry) ramp((n.bitcrushDry as GainNode).gain, 1 - settings.bitcrush * 0.7);
+
+  // Auto-wah (depth is mix; freq sweep handled by rAF using autoWahSens)
+  if (n.autoWahWet) ramp((n.autoWahWet as GainNode).gain, settings.autoWah);
+  if (n.autoWahDry) ramp((n.autoWahDry as GainNode).gain, 1 - settings.autoWah * 0.5);
+
+  // Cabinet — IR path: swap convolver buffer; biquad path: retune filters.
+  if (n.cabConvolver) {
+    const buf = cabBuffers[cabinetType];
+    if (buf) (n.cabConvolver as ConvolverNode).buffer = buf;
+  }
   const cab = CAB_PARAMS[cabinetType];
   if (n.cabHigh) {
     ramp((n.cabHigh as BiquadFilterNode).frequency, cab.hp);
@@ -209,15 +292,21 @@ function applyParamsToNodes(settings: EffectSettings, cabinetType: CabinetType) 
 
 function teardownImmediate() {
   if (noiseGateRaf) cancelAnimationFrame(noiseGateRaf);
+  if (autoWahRaf) cancelAnimationFrame(autoWahRaf);
   noiseGateRaf = 0;
-  ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo'].forEach((k) => {
+  autoWahRaf = 0;
+  ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc'].forEach((k) => {
     try { (nodes[k] as OscillatorNode | undefined)?.stop(); } catch { /* ignore */ }
   });
   mediaStream?.getTracks().forEach((t) => t.stop());
   mediaStream = null;
+  releaseCtx?.();
+  releaseCtx = null;
   audioContext?.close().catch(() => { /* ignore */ });
   audioContext = null;
   nodes = {};
+  cabBuffers = {};
+  useCabIR = false;
 }
 
 export const useGuitarEffects = create<EffectsState>((set, get) => ({
@@ -250,12 +339,37 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
     if (isTransitioning || audioContext) return;
     isTransitioning = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints());
       mediaStream = stream;
       const ctx = new AudioContext({ sampleRate: 44100 });
       audioContext = ctx;
+      releaseCtx = registerAudioContext(ctx);
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
+
+      // Load IRs (best-effort — falls back to biquads/synthetic if any are missing)
+      const tryLoad = async (path: string): Promise<AudioBuffer | null> => {
+        try {
+          const res = await fetch(path);
+          if (!res.ok) return null;
+          return await ctx.decodeAudioData(await res.arrayBuffer());
+        } catch { return null; }
+      };
+      const loadedCabs: Partial<Record<CabinetType, AudioBuffer>> = {};
+      let reverbBuffer: AudioBuffer | null = null;
+      await Promise.all([
+        tryLoad('/ir/cab/1x12.wav').then(b => { if (b) loadedCabs['1x12'] = b; }),
+        tryLoad('/ir/cab/2x12.wav').then(b => { if (b) loadedCabs['2x12'] = b; }),
+        tryLoad('/ir/cab/4x12.wav').then(b => { if (b) loadedCabs['4x12'] = b; }),
+        tryLoad('/ir/reverb.wav').then(b => { reverbBuffer = b; }),
+      ]);
+      cabBuffers = loadedCabs;
+      useCabIR = !!(loadedCabs['1x12'] && loadedCabs['2x12'] && loadedCabs['4x12']);
+      if (!useCabIR && (loadedCabs['1x12'] || loadedCabs['2x12'] || loadedCabs['4x12'])) {
+        console.info('[guitar effects] partial cab IRs found — biquad fallback engaged. Drop in all 3 (.wav at /ir/cab/{1x12,2x12,4x12}.wav) to enable convolution.');
+      }
+
       const source = ctx.createMediaStreamSource(stream);
       const n: Record<string, AudioNode> = {};
       const settings = get().settings;
@@ -306,34 +420,71 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
       (n.distortion as WaveShaperNode).curve = makeTubeDistortionCurve(settings.distortion);
       (n.distortion as WaveShaperNode).oversample = '4x';
 
+      // DC blocker — asymmetric clipping creates DC offset that eats headroom and pumps the limiter
+      n.dcBlocker = ctx.createBiquadFilter();
+      (n.dcBlocker as BiquadFilterNode).type = 'highpass';
+      (n.dcBlocker as BiquadFilterNode).frequency.value = 20;
+      (n.dcBlocker as BiquadFilterNode).Q.value = 0.707;
+
+      // Power-amp stage — light symmetric saturation, always engaged. Drive tracks preamp gain.
+      n.powerAmp = ctx.createWaveShaper();
+      (n.powerAmp as WaveShaperNode).curve = makePowerAmpCurve(0.3 + settings.distortion * 0.4);
+      (n.powerAmp as WaveShaperNode).oversample = '2x';
+
       n.postDistTone = ctx.createBiquadFilter();
       (n.postDistTone as BiquadFilterNode).type = 'lowpass';
       (n.postDistTone as BiquadFilterNode).frequency.value = settings.distortion < 0.05 ? 12000 : 6000 - settings.distortion * 1500;
       (n.postDistTone as BiquadFilterNode).Q.value = 0.8;
 
-      // === CABINET ===
-      const cab = CAB_PARAMS[cabinetType];
-      n.cabHigh = ctx.createBiquadFilter();
-      (n.cabHigh as BiquadFilterNode).type = 'highpass';
-      (n.cabHigh as BiquadFilterNode).frequency.value = cab.hp;
-      (n.cabHigh as BiquadFilterNode).Q.value = cab.hpQ;
+      // === CABINET SIMULATION ===
+      // Convolution (real IR) if all 3 cab IRs loaded; otherwise 3-biquad approximation.
+      if (useCabIR) {
+        n.cabConvolver = ctx.createConvolver();
+        (n.cabConvolver as ConvolverNode).normalize = true;
+        (n.cabConvolver as ConvolverNode).buffer = cabBuffers[cabinetType]!;
+      } else {
+        const cab = CAB_PARAMS[cabinetType];
+        n.cabHigh = ctx.createBiquadFilter();
+        (n.cabHigh as BiquadFilterNode).type = 'highpass';
+        (n.cabHigh as BiquadFilterNode).frequency.value = cab.hp;
+        (n.cabHigh as BiquadFilterNode).Q.value = cab.hpQ;
 
-      n.cabPresence = ctx.createBiquadFilter();
-      (n.cabPresence as BiquadFilterNode).type = 'peaking';
-      (n.cabPresence as BiquadFilterNode).frequency.value = cab.presFreq;
-      (n.cabPresence as BiquadFilterNode).Q.value = cab.presQ;
-      (n.cabPresence as BiquadFilterNode).gain.value = cab.presGain;
+        n.cabPresence = ctx.createBiquadFilter();
+        (n.cabPresence as BiquadFilterNode).type = 'peaking';
+        (n.cabPresence as BiquadFilterNode).frequency.value = cab.presFreq;
+        (n.cabPresence as BiquadFilterNode).Q.value = cab.presQ;
+        (n.cabPresence as BiquadFilterNode).gain.value = cab.presGain;
 
-      n.cabLow = ctx.createBiquadFilter();
-      (n.cabLow as BiquadFilterNode).type = 'lowpass';
-      (n.cabLow as BiquadFilterNode).frequency.value = cab.lp;
-      (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
+        n.cabLow = ctx.createBiquadFilter();
+        (n.cabLow as BiquadFilterNode).type = 'lowpass';
+        (n.cabLow as BiquadFilterNode).frequency.value = cab.lp;
+        (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
+      }
+
+      // === POST-CAB EQ (tone stack) ===
+      // Cuts/boosts after the cabinet so it can fix mud/harshness in the final tone,
+      // independent of the pre-distortion EQ which only shapes input.
+      n.postEqBass = ctx.createBiquadFilter();
+      (n.postEqBass as BiquadFilterNode).type = 'lowshelf';
+      (n.postEqBass as BiquadFilterNode).frequency.value = 250;
+      (n.postEqBass as BiquadFilterNode).gain.value = (settings.postEqBass - 0.5) * 12;
+
+      n.postEqMid = ctx.createBiquadFilter();
+      (n.postEqMid as BiquadFilterNode).type = 'peaking';
+      (n.postEqMid as BiquadFilterNode).frequency.value = 1200;
+      (n.postEqMid as BiquadFilterNode).Q.value = 0.9;
+      (n.postEqMid as BiquadFilterNode).gain.value = (settings.postEqMid - 0.5) * 12;
+
+      n.postEqTreble = ctx.createBiquadFilter();
+      (n.postEqTreble as BiquadFilterNode).type = 'highshelf';
+      (n.postEqTreble as BiquadFilterNode).frequency.value = 4000;
+      (n.postEqTreble as BiquadFilterNode).gain.value = (settings.postEqTreble - 0.5) * 12;
 
       // === WAH ===
       n.wah = ctx.createBiquadFilter();
       (n.wah as BiquadFilterNode).type = 'bandpass';
       (n.wah as BiquadFilterNode).frequency.value = 200 + settings.wahFreq * 3800;
-      (n.wah as BiquadFilterNode).Q.value = 2 + settings.wah * 10;
+      (n.wah as BiquadFilterNode).Q.value = 2 + settings.wah * 4;
       n.wahDry = ctx.createGain();
       n.wahWet = ctx.createGain();
       (n.wahDry as GainNode).gain.value = 1 - settings.wah;
@@ -416,10 +567,15 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
       (n.phaserWet as GainNode).gain.value = settings.phaser;
       n.phaserDry = ctx.createGain();
       (n.phaserDry as GainNode).gain.value = 1;
+      // Phaser feedback: last stage → first stage. This is what gives Phase 90/Small Stone their throaty resonance.
+      n.phaserFeedback = ctx.createGain();
+      (n.phaserFeedback as GainNode).gain.value = 0.5;
 
       // === TREMOLO ===
+      // Tremolo: base = 1 - depth/2, lfo amplitude = depth/2 → output swings 1-depth..1
+      // At depth=0 stays at unity; at depth=1 swings 0..1 (no above-unity overshoot into limiter)
       n.tremoloGain = ctx.createGain();
-      (n.tremoloGain as GainNode).gain.value = 1;
+      (n.tremoloGain as GainNode).gain.value = 1 - settings.tremolo * 0.5;
       n.tremoloLfo = ctx.createOscillator();
       (n.tremoloLfo as OscillatorNode).type = 'sine';
       (n.tremoloLfo as OscillatorNode).frequency.value = settings.tremoloRate;
@@ -442,14 +598,52 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
       (n.delayDamping as BiquadFilterNode).frequency.value = 3500;
 
       // === REVERB ===
+      // Use real IR if /ir/reverb.wav exists; else fall back to synthetic noise-based IR.
       n.convolver = ctx.createConvolver();
-      (n.convolver as ConvolverNode).buffer = createRealisticReverb(ctx, 2.5, 2.5, 0.02);
+      (n.convolver as ConvolverNode).buffer = reverbBuffer ?? createRealisticReverb(ctx, 2.5, 2.5, 0.02);
       n.reverbGain = ctx.createGain();
       (n.reverbGain as GainNode).gain.value = settings.reverb * 0.7;
       n.dryGain = ctx.createGain();
       (n.dryGain as GainNode).gain.value = 1;
 
-      // === Output limiter + master gain (NEW) ===
+      // === RING MODULATOR ===
+      // Multiplies input × sine carrier. carrier gain modulated by oscillator → AM/ring mod.
+      n.ringModCarrier = ctx.createGain();
+      (n.ringModCarrier as GainNode).gain.value = 0;
+      n.ringModOsc = ctx.createOscillator();
+      (n.ringModOsc as OscillatorNode).type = 'sine';
+      (n.ringModOsc as OscillatorNode).frequency.value = settings.ringModFreq;
+      (n.ringModOsc as OscillatorNode).connect((n.ringModCarrier as GainNode).gain);
+      (n.ringModOsc as OscillatorNode).start();
+      n.ringModWet = ctx.createGain();
+      (n.ringModWet as GainNode).gain.value = settings.ringMod;
+      n.ringModDry = ctx.createGain();
+      (n.ringModDry as GainNode).gain.value = 1 - settings.ringMod * 0.6;
+
+      // === BITCRUSHER (bit-depth quantization) ===
+      n.bitcrush = ctx.createWaveShaper();
+      (n.bitcrush as WaveShaperNode).curve = makeBitcrusherCurve(settings.bitcrushBits);
+      (n.bitcrush as WaveShaperNode).oversample = 'none'; // crunchier aliasing — intentional for this effect
+      n.bitcrushWet = ctx.createGain();
+      (n.bitcrushWet as GainNode).gain.value = settings.bitcrush;
+      n.bitcrushDry = ctx.createGain();
+      (n.bitcrushDry as GainNode).gain.value = 1 - settings.bitcrush * 0.7;
+
+      // === AUTO-WAH (envelope-follower bandpass) ===
+      // Envelope analyser sniffs pre-effect level; rAF loop sweeps the bandpass freq.
+      n.autoWahAnalyser = ctx.createAnalyser();
+      (n.autoWahAnalyser as AnalyserNode).fftSize = 256;
+      (n.autoWahAnalyser as AnalyserNode).smoothingTimeConstant = 0.6;
+      n.autoWahFilter = ctx.createBiquadFilter();
+      (n.autoWahFilter as BiquadFilterNode).type = 'bandpass';
+      (n.autoWahFilter as BiquadFilterNode).frequency.value = 400;
+      (n.autoWahFilter as BiquadFilterNode).Q.value = 5;
+      n.autoWahWet = ctx.createGain();
+      (n.autoWahWet as GainNode).gain.value = settings.autoWah;
+      n.autoWahDry = ctx.createGain();
+      (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
+
+      // === Output limiter + master gain ===
       n.limiter = ctx.createDynamicsCompressor();
       const limiter = n.limiter as DynamicsCompressorNode;
       limiter.threshold.value = -3;
@@ -472,12 +666,27 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
 
       (n.eqTreble as BiquadFilterNode).connect(n.preGain);
       (n.preGain as GainNode).connect(n.distortion);
-      (n.distortion as WaveShaperNode).connect(n.postDistTone);
-      (n.postDistTone as BiquadFilterNode).connect(n.cabHigh);
-      (n.cabHigh as BiquadFilterNode).connect(n.cabPresence);
-      (n.cabPresence as BiquadFilterNode).connect(n.cabLow);
+      (n.distortion as WaveShaperNode).connect(n.dcBlocker);
+      (n.dcBlocker as BiquadFilterNode).connect(n.powerAmp);
+      (n.powerAmp as WaveShaperNode).connect(n.postDistTone);
+      let cabOut: AudioNode;
+      if (useCabIR) {
+        (n.postDistTone as BiquadFilterNode).connect(n.cabConvolver);
+        cabOut = n.cabConvolver;
+      } else {
+        (n.postDistTone as BiquadFilterNode).connect(n.cabHigh);
+        (n.cabHigh as BiquadFilterNode).connect(n.cabPresence);
+        (n.cabPresence as BiquadFilterNode).connect(n.cabLow);
+        cabOut = n.cabLow;
+      }
 
-      const postCab = n.cabLow;
+      // → post-cab tone stack
+      cabOut.connect(n.postEqBass);
+      (n.postEqBass as BiquadFilterNode).connect(n.postEqMid);
+      (n.postEqMid as BiquadFilterNode).connect(n.postEqTreble);
+      const postCab: AudioNode = n.postEqTreble;
+
+      // → wah split/merge
       postCab.connect(n.wahWet as GainNode);
       (n.wahWet as GainNode).connect(n.wah);
       postCab.connect(n.wahDry as GainNode);
@@ -514,6 +723,9 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
       flangerMerge.connect(phaserStages[0]);
       for (let i = 0; i < phaserStages.length - 1; i++) phaserStages[i].connect(phaserStages[i + 1]);
       phaserStages[phaserStages.length - 1].connect(n.phaserWet as GainNode);
+      // Feedback path: last stage → feedback gain → first stage (Web Audio inserts a 1-block delay)
+      phaserStages[phaserStages.length - 1].connect(n.phaserFeedback as GainNode);
+      (n.phaserFeedback as GainNode).connect(phaserStages[0]);
       flangerMerge.connect(n.phaserDry as GainNode);
 
       const phaserMerge = ctx.createGain();
@@ -523,13 +735,42 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
 
       phaserMerge.connect(n.tremoloGain);
 
-      (n.tremoloGain as GainNode).connect(n.delay as DelayNode);
+      // → ring modulator (input × sine carrier) + dry
+      (n.tremoloGain as GainNode).connect(n.ringModCarrier as GainNode);
+      (n.ringModCarrier as GainNode).connect(n.ringModWet as GainNode);
+      (n.tremoloGain as GainNode).connect(n.ringModDry as GainNode);
+      const ringModMerge = ctx.createGain();
+      n.ringModMerge = ringModMerge;
+      (n.ringModWet as GainNode).connect(ringModMerge);
+      (n.ringModDry as GainNode).connect(ringModMerge);
+
+      // → bitcrusher + dry
+      ringModMerge.connect(n.bitcrush as WaveShaperNode);
+      (n.bitcrush as WaveShaperNode).connect(n.bitcrushWet as GainNode);
+      ringModMerge.connect(n.bitcrushDry as GainNode);
+      const bitcrushMerge = ctx.createGain();
+      n.bitcrushMerge = bitcrushMerge;
+      (n.bitcrushWet as GainNode).connect(bitcrushMerge);
+      (n.bitcrushDry as GainNode).connect(bitcrushMerge);
+
+      // → auto-wah envelope follower (analyser taps pre-filter, rAF sweeps freq)
+      bitcrushMerge.connect(n.autoWahAnalyser as AnalyserNode);
+      bitcrushMerge.connect(n.autoWahFilter as BiquadFilterNode);
+      (n.autoWahFilter as BiquadFilterNode).connect(n.autoWahWet as GainNode);
+      bitcrushMerge.connect(n.autoWahDry as GainNode);
+      const autoWahMerge = ctx.createGain();
+      n.autoWahMerge = autoWahMerge;
+      (n.autoWahWet as GainNode).connect(autoWahMerge);
+      (n.autoWahDry as GainNode).connect(autoWahMerge);
+
+      // → delay (with filtered feedback)
+      autoWahMerge.connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
       (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
-      (n.tremoloGain as GainNode).connect(n.dryGain as GainNode);
+      autoWahMerge.connect(n.dryGain as GainNode);
 
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
       (n.convolver as ConvolverNode).connect(n.reverbGain as GainNode);
@@ -574,6 +815,30 @@ export const useGuitarEffects = create<EffectsState>((set, get) => ({
         noiseGateRaf = requestAnimationFrame(pollGate);
       };
       noiseGateRaf = requestAnimationFrame(pollGate);
+
+      // === AUTO-WAH rAF envelope follower modulating bandpass freq ===
+      const wahData = new Uint8Array((n.autoWahAnalyser as AnalyserNode).frequencyBinCount);
+      let wahEnv = 0;
+      const pollWah = () => {
+        if (!audioContext) return;
+        const an = nodes.autoWahAnalyser as AnalyserNode | undefined;
+        const filt = nodes.autoWahFilter as BiquadFilterNode | undefined;
+        if (!an || !filt) return;
+        an.getByteTimeDomainData(wahData);
+        let peak = 0;
+        for (let i = 0; i < wahData.length; i++) {
+          const v = Math.abs(wahData[i] - 128) / 128;
+          if (v > peak) peak = v;
+        }
+        // Smooth envelope (attack faster than release)
+        const target = peak;
+        wahEnv += (target - wahEnv) * (target > wahEnv ? 0.35 : 0.06);
+        const sens = useGuitarEffects.getState().settings.autoWahSens;
+        const freq = 200 + Math.min(1, wahEnv * (1 + sens * 5)) * 2800;
+        filt.frequency.setTargetAtTime(freq, audioContext.currentTime, 0.01);
+        autoWahRaf = requestAnimationFrame(pollWah);
+      };
+      autoWahRaf = requestAnimationFrame(pollWah);
 
       // === Master gain fade-in ===
       const t = ctx.currentTime;

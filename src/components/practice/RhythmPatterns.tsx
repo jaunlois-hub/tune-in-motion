@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { RHYTHM_PATTERNS, type RhythmPattern } from '@/lib/musicTheory';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
-function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number) {
+function synthDrum(ctx: AudioContext, dest: AudioNode, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number) {
   if (type === 'kick') {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -14,7 +16,7 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     gain.gain.setValueAtTime(1, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(dest);
     osc.start(time);
     osc.stop(time + 0.3);
   } else if (type === 'snare') {
@@ -33,7 +35,7 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     filter.frequency.setValueAtTime(1000, time);
     noise.connect(filter);
     filter.connect(noiseGain);
-    noiseGain.connect(ctx.destination);
+    noiseGain.connect(dest);
     noise.start(time);
     noise.stop(time + 0.15);
     // Body
@@ -45,7 +47,7 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     oscGain.gain.setValueAtTime(0.5, time);
     oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
     osc.connect(oscGain);
-    oscGain.connect(ctx.destination);
+    oscGain.connect(dest);
     osc.start(time);
     osc.stop(time + 0.1);
   } else {
@@ -65,7 +67,7 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     filter.frequency.setValueAtTime(7000, time);
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(dest);
     noise.start(time);
     noise.stop(time + dur + 0.01);
   }
@@ -77,9 +79,11 @@ export function RhythmPatterns() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(-1);
   const ctxRef = useRef<AudioContext | null>(null);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<number | null>(null);
-  const nextBeatTimeRef = useRef(0);
-  const beatIdxRef = useRef(0);
+  const nextLoopStartRef = useRef(0);
+  const loopIdxRef = useRef(0);
 
   const stopPlaying = useCallback(() => {
     if (timerRef.current) {
@@ -90,88 +94,73 @@ export function RhythmPatterns() {
     setCurrentBeat(-1);
   }, []);
 
-  const startPlaying = useCallback(() => {
+  const startPlaying = useCallback(async () => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
+      const ctx = getSharedAudioContextSync();
+      ctxRef.current = ctx;
+      const { master, release } = createMasterGain(ctx);
+      masterRef.current = master;
+      releaseMasterRef.current = release;
     }
     const ctx = ctxRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+    }
 
     stopPlaying();
     setIsPlaying(true);
-    beatIdxRef.current = 0;
 
     const beatDuration = 60 / bpm;
     const pattern = selectedPattern;
-
-    // Schedule ahead approach
-    const scheduleAhead = 0.1;
-    nextBeatTimeRef.current = ctx.currentTime + 0.05;
-    let loopStart = nextBeatTimeRef.current;
-
-    const scheduler = () => {
-      while (nextBeatTimeRef.current < ctx.currentTime + scheduleAhead) {
-        const beatPos = beatIdxRef.current;
-        const beatInPattern = beatPos % pattern.beats;
-
-        // Find hits at this subdivision
-        // We quantize to 16th notes (0.25 beat resolution)
-        const subDiv = 16; // check 16 subdivisions per beat
-        for (let s = 0; s < subDiv; s++) {
-          const subBeatTime = s / subDiv;
-          const absTime = beatInPattern + subBeatTime;
-          pattern.hits.forEach(hit => {
-            if (Math.abs(hit.time - absTime) < 0.01) {
-              synthDrum(ctx, hit.type, loopStart + absTime * beatDuration);
-            }
-          });
-        }
-
-        // Only advance whole beats for the visual
-        setCurrentBeat(beatInPattern);
-        nextBeatTimeRef.current += beatDuration;
-        beatIdxRef.current++;
-
-        // Reset loop
-        if (beatIdxRef.current % pattern.beats === 0) {
-          loopStart = nextBeatTimeRef.current;
-        }
-      }
-    };
-
-    // Initial schedule of full pattern
     const fullPatternDur = pattern.beats * beatDuration;
-    const scheduleFullPattern = (startTime: number) => {
-      pattern.hits.forEach(hit => {
-        synthDrum(ctx, hit.type, startTime + hit.time * beatDuration);
+    const dest = masterRef.current ?? ctx.destination;
+
+    // Lookahead scheduler: schedule one full pattern at a time, ~0.25s ahead
+    // of the audio clock, and advance the visual beat based on ctx.currentTime
+    // (not setInterval drift). This was previously broken — the old impl
+    // computed `elapsed` as `ctx.currentTime - (ctx.currentTime - ...)` which
+    // is always a constant, so the loop never re-scheduled correctly.
+    nextLoopStartRef.current = ctx.currentTime + 0.1;
+    loopIdxRef.current = 0;
+    const startBaseline = nextLoopStartRef.current;
+
+    const scheduleLoopAt = (startTime: number) => {
+      pattern.hits.forEach((hit) => {
+        synthDrum(ctx, dest, hit.type, startTime + hit.time * beatDuration);
       });
     };
 
-    // Use a simpler loop-based approach
-    let loopCount = 0;
-    const scheduleLoop = () => {
-      const startTime = ctx.currentTime + 0.05 + loopCount * fullPatternDur;
-      scheduleFullPattern(startTime);
-      loopCount++;
-    };
+    // Always have at least one loop scheduled in advance.
+    scheduleLoopAt(nextLoopStartRef.current);
+    nextLoopStartRef.current += fullPatternDur;
+    loopIdxRef.current++;
 
-    scheduleLoop();
-
-    let beatTracker = 0;
     timerRef.current = window.setInterval(() => {
-      const elapsed = ctx.currentTime - (ctx.currentTime - (loopCount - 1) * fullPatternDur);
-      setCurrentBeat(beatTracker % pattern.beats);
-      beatTracker++;
-
-      // Schedule next loop when we're near the end
-      const nextLoopTime = 0.05 + loopCount * fullPatternDur;
-      if (ctx.currentTime > nextLoopTime - fullPatternDur * 0.5) {
-        scheduleLoop();
+      const now = ctx.currentTime;
+      // Schedule another loop if the next one starts within 0.25s.
+      if (now > nextLoopStartRef.current - 0.25) {
+        scheduleLoopAt(nextLoopStartRef.current);
+        nextLoopStartRef.current += fullPatternDur;
+        loopIdxRef.current++;
       }
-    }, beatDuration * 1000);
+      // Visual beat from audio clock so it never drifts.
+      const elapsed = now - startBaseline;
+      if (elapsed >= 0) {
+        const beatInPattern = Math.floor(elapsed / beatDuration) % pattern.beats;
+        setCurrentBeat(beatInPattern);
+      }
+    }, 25);
   }, [bpm, selectedPattern, stopPlaying]);
 
-  useEffect(() => () => stopPlaying(), [stopPlaying]);
+  useEffect(() => {
+    return () => {
+      stopPlaying();
+      releaseMasterRef.current?.();
+      releaseMasterRef.current = null;
+      masterRef.current = null;
+      ctxRef.current = null;
+    };
+  }, [stopPlaying]);
 
   const handlePatternChange = (p: RhythmPattern) => {
     setSelectedPattern(p);

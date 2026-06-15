@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2, Save } from 'lucide-react';
+import { Youtube, Search, Zap, ChevronDown, ChevronUp, ExternalLink, Music, Loader2, Save, Guitar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { matchPresetsToTitle, type TonePreset } from '@/lib/tonePresets';
+import { findSongChords, type SongChords } from '@/lib/songChords';
+import { ChordDiagram } from '@/components/studio/ChordDiagram';
 import type { EffectSettings } from '@/hooks/useGuitarEffects';
 
 function extractVideoId(url: string): string | null {
@@ -33,10 +35,16 @@ export function YouTubeToneMatcher({ onApplyPreset, onSavePreset }: YouTubeToneM
   const [error, setError] = useState<string | null>(null);
   const [matchedPreset, setMatchedPreset] = useState<TonePreset | null>(null);
   const [showAllMatches, setShowAllMatches] = useState(false);
+  const [showDiagrams, setShowDiagrams] = useState(true);
 
   const allMatches = useMemo(() => {
     if (!videoTitle) return [];
     return matchPresetsToTitle(videoTitle);
+  }, [videoTitle]);
+
+  const songChords = useMemo<SongChords | null>(() => {
+    if (!videoTitle) return null;
+    return findSongChords(videoTitle);
   }, [videoTitle]);
 
   const handleAnalyze = useCallback(async () => {
@@ -124,6 +132,96 @@ export function YouTubeToneMatcher({ onApplyPreset, onSavePreset }: YouTubeToneM
               <div className="mt-3 flex items-start gap-2">
                 <ExternalLink className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <p className="text-sm text-foreground font-medium line-clamp-2">{videoTitle}</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Song chords (Play Along) */}
+      <AnimatePresence>
+        {songChords && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="rounded-xl border border-amber-400/30 bg-gradient-to-br from-amber-400/10 via-card/60 to-card/30 p-4 space-y-3"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Guitar className="w-4 h-4 text-amber-300" />
+                <span className="text-xs font-display font-bold text-amber-200 uppercase tracking-wider">
+                  Play Along · Chords
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] font-mono text-foreground/85">
+                <span className="px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30">
+                  Key: <span className="font-bold text-amber-200">{songChords.key}</span>
+                </span>
+                {songChords.bpm && (
+                  <span className="px-2 py-0.5 rounded-full bg-secondary/40 border border-border/40">
+                    {songChords.bpm} BPM
+                  </span>
+                )}
+                {songChords.capo !== undefined && songChords.capo > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary">
+                    Capo {songChords.capo}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowDiagrams((v) => !v)}
+                  className="text-[10px] underline-offset-2 hover:underline text-muted-foreground"
+                >
+                  {showDiagrams ? 'Hide diagrams' : 'Show diagrams'}
+                </button>
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              <span className="text-foreground/90">{songChords.artist}</span> · {songChords.song}
+            </div>
+
+            <div className="space-y-3">
+              {songChords.sections.map((section) => (
+                <div key={section.name} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[10px] font-display font-bold uppercase tracking-wider text-amber-300">
+                      {section.name}
+                    </span>
+                    {section.description && (
+                      <span className="text-[10px] text-muted-foreground/80 italic line-clamp-1">{section.description}</span>
+                    )}
+                  </div>
+
+                  {/* Chord-name strip — always visible, scrollable */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {section.chords.map((c, i) => (
+                      <span
+                        key={`${c}-${i}`}
+                        className="px-2.5 py-1 rounded-md bg-secondary/50 border border-border/60 text-sm font-display font-bold text-primary shadow-sm"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Diagram row — togglable */}
+                  {showDiagrams && (
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      {/* Deduplicate chords for the diagram row so we don't draw the same diagram twice */}
+                      {Array.from(new Set(section.chords)).map((c) => (
+                        <div key={`diag-${c}`} className="shrink-0">
+                          <ChordDiagram chord={c} size="xs" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {songChords.source && (
+              <div className="text-[10px] text-muted-foreground/60 italic border-t border-border/30 pt-2">
+                {songChords.source}
               </div>
             )}
           </motion.div>

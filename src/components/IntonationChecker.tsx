@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePitchDetection } from '@/hooks/usePitchDetection';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff, RotateCcw, Check, AlertTriangle, XCircle, Lock } from 'lucide-react';
+import { Mic, MicOff, RotateCcw, Check, AlertTriangle, XCircle, Lock, Zap } from 'lucide-react';
 
 const STRINGS = [
   { num: 6, name: 'Low E', freq: 82.41 },
@@ -11,6 +11,8 @@ const STRINGS = [
   { num: 2, name: 'B', freq: 246.94 },
   { num: 1, name: 'High E', freq: 329.63 },
 ];
+
+const FRETS_TO_MEASURE = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
 type Step = 'open' | 'harmonic' | 'fretted';
 

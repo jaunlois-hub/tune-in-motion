@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity } from 'lucide-react';
+import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity, Upload, Share2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -49,7 +50,7 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
@@ -58,6 +59,7 @@ const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] =
   { id: 'modulation', label: 'Modulation', icon: '🌊' },
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
+  { id: 'weird', label: 'Weird', icon: '👽' },
 ];
 
 const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
@@ -95,6 +97,14 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'octaver', label: 'Octaver' },
     { key: 'octaverMix', label: 'Oct Mix' },
   ],
+  weird: [
+    { key: 'ringMod', label: 'Ring Mod' },
+    { key: 'ringModFreq', label: 'RM Freq', min: 30, max: 2000, unit: 'Hz', step: 1 },
+    { key: 'bitcrush', label: 'Bitcrush' },
+    { key: 'bitcrushBits', label: 'Bits', min: 2, max: 16, step: 1 },
+    { key: 'autoWah', label: 'Auto-Wah' },
+    { key: 'autoWahSens', label: 'AW Sens' },
+  ],
 };
 
 const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSettings> }[] = [
@@ -104,6 +114,10 @@ const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSett
   { name: 'Metal', emoji: '🤘', settings: { distortion: 0.75, gain: 0.9, reverb: 0.1, delay: 0, chorus: 0, compressor: 0.4, noiseGate: 0.5, eqBass: 0.6, eqMid: 0.35, eqTreble: 0.7, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
   { name: 'Ambient', emoji: '🌊', settings: { distortion: 0.1, gain: 0.6, reverb: 0.7, delay: 0.5, delayTime: 0.45, chorus: 0.25, compressor: 0.2, eqBass: 0.5, eqMid: 0.5, eqTreble: 0.6, wah: 0, flanger: 0, phaser: 0.15, tremolo: 0.1, tremoloRate: 2, octaver: 0 } },
   { name: 'Blues', emoji: '🎷', settings: { distortion: 0.25, gain: 0.75, reverb: 0.2, delay: 0.1, chorus: 0, compressor: 0.2, eqBass: 0.55, eqMid: 0.6, eqTreble: 0.5, wah: 0, flanger: 0, phaser: 0, tremolo: 0, octaver: 0 } },
+  { name: 'Robot', emoji: '🤖', settings: { distortion: 0.2, gain: 0.7, reverb: 0.15, delay: 0.1, delayTime: 0.25, ringMod: 0.7, ringModFreq: 180, bitcrush: 0.2, bitcrushBits: 6, compressor: 0.3, eqMid: 0.6 } },
+  { name: 'Glitch', emoji: '👾', settings: { distortion: 0.15, gain: 0.65, reverb: 0.2, delay: 0.35, delayTime: 0.18, bitcrush: 0.85, bitcrushBits: 4, ringMod: 0.15, ringModFreq: 90, compressor: 0.35 } },
+  { name: 'Funk', emoji: '🕺', settings: { distortion: 0.1, gain: 0.75, reverb: 0.15, delay: 0, autoWah: 0.8, autoWahSens: 0.7, compressor: 0.5, eqBass: 0.45, eqMid: 0.65, eqTreble: 0.55 } },
+  { name: 'Space', emoji: '🛸', settings: { distortion: 0.2, gain: 0.6, reverb: 0.75, delay: 0.55, delayTime: 0.5, chorus: 0.3, phaser: 0.35, phaserRate: 0.4, ringMod: 0.12, ringModFreq: 880, autoWah: 0.2, autoWahSens: 0.4 } },
 ];
 
 function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
@@ -131,7 +145,7 @@ function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () =
   );
 }
 
-function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset; onApply: () => void; onDelete: () => void }) {
+function CustomPresetCard({ preset, onApply, onDelete, onExport }: { preset: CustomPreset; onApply: () => void; onDelete: () => void; onExport: () => void }) {
   return (
     <motion.div
       className="text-left p-3 rounded-xl bg-accent/20 hover:bg-accent/30 border border-accent/30 hover:border-primary/30 transition-all group relative"
@@ -153,12 +167,22 @@ function CustomPresetCard({ preset, onApply, onDelete }: { preset: CustomPreset;
           </div>
         </div>
       </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
-      >
-        <Trash2 className="w-3 h-3" />
-      </button>
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onExport(); }}
+          className="p-1 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-primary transition-all"
+          title="Export preset as JSON"
+        >
+          <Download className="w-3 h-3" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all"
+          title="Delete preset"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
     </motion.div>
   );
 }
@@ -249,7 +273,36 @@ export function StudioView() {
   const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, updateSettingsBulk, resetSettings } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
-  const { presets: customPresets, savePreset, deletePreset } = useCustomPresets();
+  const { presets: customPresets, savePreset, deletePreset, exportAll, exportPreset, importPresets } = useCustomPresets();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-importing the same file
+    if (!file) return;
+    try {
+      const result = await importPresets(file, 'merge');
+      toast({
+        title: 'Presets imported',
+        description: `Added ${result.added} of ${result.total}${result.skipped ? ` • ${result.skipped} skipped` : ''}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Import failed',
+        description: err instanceof Error ? err.message : 'Invalid preset file',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleExportAll = () => {
+    if (customPresets.length === 0) {
+      toast({ title: 'Nothing to export', description: 'Save a preset first to export it.' });
+      return;
+    }
+    exportAll();
+    toast({ title: 'Presets exported', description: `${customPresets.length} preset${customPresets.length === 1 ? '' : 's'} downloaded as JSON` });
+  };
 
   const filteredPresets = useMemo(() => {
     return TONE_PRESETS.filter(p => {
@@ -622,23 +675,59 @@ export function StudioView() {
                             ))}
                           </div>
 
-                          {/* Custom Presets Section */}
-                          {filteredCustomPresets.length > 0 && (
-                            <div>
-                              <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
-                                <Star className="w-3 h-3" /> My Presets ({filteredCustomPresets.length})
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-                                {filteredCustomPresets.map((preset) => (
-                                  <CustomPresetCard
-                                    key={preset.id}
-                                    preset={preset}
-                                    onApply={() => applyCustomPreset(preset)}
-                                    onDelete={() => deletePreset(preset.id)}
-                                  />
-                                ))}
-                              </div>
+                          {/* My Presets header — always shown so import/export are reachable */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1">
+                              <Star className="w-3 h-3" /> My Presets ({customPresets.length})
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <input
+                                ref={importInputRef}
+                                type="file"
+                                accept="application/json,.json"
+                                className="hidden"
+                                onChange={handleImportFile}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() => importInputRef.current?.click()}
+                                title="Import presets from a JSON file"
+                              >
+                                <Upload className="w-3 h-3 mr-1" /> Import
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={handleExportAll}
+                                title="Export all custom presets as JSON"
+                              >
+                                <Share2 className="w-3 h-3 mr-1" /> Export All
+                              </Button>
                             </div>
+                          </div>
+
+                          {/* Custom Presets Section */}
+                          {filteredCustomPresets.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+                              {filteredCustomPresets.map((preset) => (
+                                <CustomPresetCard
+                                  key={preset.id}
+                                  preset={preset}
+                                  onApply={() => applyCustomPreset(preset)}
+                                  onDelete={() => deletePreset(preset.id)}
+                                  onExport={() => exportPreset(preset.id)}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground/60 italic mb-3">
+                              {customPresets.length === 0
+                                ? 'Save a preset or import a JSON file to share tones between projects.'
+                                : 'No saved presets match your search.'}
+                            </p>
                           )}
 
                           {/* Built-in Presets */}

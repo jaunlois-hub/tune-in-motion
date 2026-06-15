@@ -1,5 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useBpmSync } from './useBpmSync';
+import { createMasterGain } from './useMasterVolume';
+import { withAudioFeature } from '@/lib/audioDiagnostics';
 
 export function useMetronome() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -12,18 +15,22 @@ export function useMetronome() {
   const currentBeatRef = useRef(0);
   const timerIdRef = useRef<number | null>(null);
   const tapTimesRef = useRef<number[]>([]);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
 
   const scheduleNote = useCallback((time: number, beatNum: number) => {
     if (!audioContextRef.current) return;
-    const osc = audioContextRef.current.createOscillator();
-    const gain = audioContextRef.current.createGain();
-    osc.connect(gain);
-    gain.connect(audioContextRef.current.destination);
-    osc.frequency.value = beatNum === 0 ? 1000 : 800;
-    gain.gain.setValueAtTime(0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
-    osc.start(time);
-    osc.stop(time + 0.05);
+    withAudioFeature('metronome', () => {
+      const osc = audioContextRef.current!.createOscillator();
+      const gain = audioContextRef.current!.createGain();
+      osc.connect(gain);
+      gain.connect(masterGainRef.current ?? audioContextRef.current!.destination);
+      osc.frequency.value = beatNum === 0 ? 1000 : 800;
+      gain.gain.setValueAtTime(0.5, time);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+      osc.start(time);
+      osc.stop(time + 0.05);
+    });
   }, []);
 
   const scheduler = useCallback(() => {
@@ -41,7 +48,15 @@ export function useMetronome() {
 
   const start = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+      const ctx = getSharedAudioContextSync();
+      audioContextRef.current = ctx;
+      const { master, release: releaseMaster } = createMasterGain(ctx);
+      masterGainRef.current = master;
+      releaseMasterRef.current = releaseMaster;
+    }
+    // Resume on user gesture so the first beat plays on Chrome/Safari cold starts.
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch((err) => console.warn('AudioContext resume failed', err));
     }
     currentBeatRef.current = 0;
     nextNoteTimeRef.current = audioContextRef.current.currentTime;
@@ -79,7 +94,10 @@ export function useMetronome() {
   }, [setBpm]);
 
   useEffect(() => {
-    return () => { if (timerIdRef.current) clearTimeout(timerIdRef.current); };
+    return () => {
+      if (timerIdRef.current) clearTimeout(timerIdRef.current);
+      releaseMasterRef.current?.();
+    };
   }, []);
 
   return { isPlaying, bpm, beat, beatsPerMeasure, setBpm, setBeatsPerMeasure, start, stop, tapTempo };

@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
-import { Volume2, VolumeX, Ear, ListMusic } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { type Tuning, type TuningNote } from '@/lib/tunings';
 
 interface StringIndicatorProps {
@@ -7,122 +7,68 @@ interface StringIndicatorProps {
   currentNote: string | null;
   currentOctave: number | null;
   isActive: boolean;
-  playingFrequency: number | null;
-  onPlayTone: (frequency: number) => void;
-  onPlayForDuration?: (frequency: number, ms: number) => void;
+  lockedString?: TuningNote | null;
+  onToggleLock?: (note: TuningNote) => void;
 }
 
-export function StringIndicator({ tuning, currentNote, currentOctave, isActive, playingFrequency, onPlayTone, onPlayForDuration }: StringIndicatorProps) {
-  const [byEarMode, setByEarMode] = useState(false);
-  const [playingAll, setPlayingAll] = useState(false);
-  const playAllRef = useRef<number[]>([]);
-
-  const handleTone = useCallback((frequency: number) => {
-    if (byEarMode && onPlayForDuration) {
-      onPlayForDuration(frequency, 2000);
-    } else {
-      onPlayTone(frequency);
-    }
-  }, [byEarMode, onPlayTone, onPlayForDuration]);
-
-  const playAll = useCallback(() => {
-    if (playingAll || !onPlayForDuration) return;
-    setPlayingAll(true);
-    playAllRef.current.forEach(clearTimeout);
-    playAllRef.current = [];
-
-    // Play strings from low to high (reversed array since notes are high-to-low)
-    const notes = [...tuning.notes].reverse();
-    notes.forEach((note, i) => {
-      const t = window.setTimeout(() => {
-        onPlayForDuration(note.frequency, 2500);
-      }, i * 3000);
-      playAllRef.current.push(t);
-    });
-
-    const endT = window.setTimeout(() => setPlayingAll(false), notes.length * 3000);
-    playAllRef.current.push(endT);
-  }, [tuning.notes, onPlayForDuration, playingAll]);
-
+export function StringIndicator({
+  tuning, currentNote, currentOctave, isActive, lockedString, onToggleLock,
+}: StringIndicatorProps) {
+  const clickable = !!onToggleLock;
   return (
-    <div className="space-y-3">
-      {/* Mode toggles */}
-      <div className="flex items-center justify-center gap-2">
-        <button
-          onClick={() => setByEarMode(!byEarMode)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display transition-all border ${
-            byEarMode
-              ? 'bg-accent/20 border-accent text-accent'
-              : 'border-border text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Ear className="w-3 h-3" />
-          By Ear
-        </button>
-        {byEarMode && (
-          <button
-            onClick={playAll}
-            disabled={playingAll}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display transition-all border ${
-              playingAll
-                ? 'bg-primary/20 border-primary text-primary animate-pulse'
-                : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ListMusic className="w-3 h-3" />
-            {playingAll ? 'Playing...' : 'Play All'}
-          </button>
-        )}
-      </div>
-
-      {byEarMode && (
-        <p className="text-center text-[10px] text-muted-foreground">
-          Tap a string — hear it for 2 seconds, then tune by memory
-        </p>
-      )}
-
-      {/* Strings */}
+    <div className="space-y-2">
       <div className="flex justify-center gap-2 md:gap-3 flex-wrap">
         {tuning.notes.map((note) => {
           const isCurrentString = isActive && currentNote === note.note && currentOctave === note.octave;
-          const isPlaying = playingFrequency === note.frequency;
+          const isLocked = !!(lockedString && lockedString.string === note.string && lockedString.note === note.note && lockedString.octave === note.octave);
 
           return (
-            <button
+            <motion.button
               key={note.string}
-              onClick={() => handleTone(note.frequency)}
-              className={`flex flex-col items-center transition-all duration-200 group cursor-pointer ${
-                isCurrentString ? 'scale-110' : 'hover:scale-105'
-              }`}
+              onClick={clickable ? () => onToggleLock!(note) : undefined}
+              whileHover={clickable ? { y: -2 } : undefined}
+              whileTap={clickable ? { scale: 0.95 } : undefined}
+              disabled={!clickable}
+              aria-label={clickable ? (isLocked ? `Unlock ${note.note}${note.octave}` : `Lock to ${note.note}${note.octave}`) : undefined}
+              className={`flex flex-col items-center transition-all duration-200 ${
+                clickable ? 'cursor-pointer' : 'cursor-default'
+              } ${isCurrentString || isLocked ? 'scale-110' : ''}`}
             >
               <div
                 className={`relative w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center font-display font-bold text-sm md:text-base border-2 transition-all duration-200 ${
-                  isPlaying
-                    ? 'bg-accent/30 border-accent text-accent shadow-lg animate-pulse-glow'
+                  isLocked
+                    ? 'bg-amber-400/20 border-amber-400 text-amber-300 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
                     : isCurrentString
-                    ? 'bg-primary/20 border-primary text-primary shadow-lg box-glow'
-                    : 'bg-secondary/30 border-border text-muted-foreground group-hover:border-primary/50'
+                      ? 'bg-primary/20 border-primary text-primary shadow-lg box-glow'
+                      : 'bg-secondary/30 border-border text-muted-foreground hover:border-foreground/40'
                 }`}
               >
                 {note.note}
                 <span className="text-[10px] opacity-70">{note.octave}</span>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${
-                  isPlaying ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground opacity-0 group-hover:opacity-100'
-                } transition-opacity`}>
-                  {isPlaying ? <VolumeX className="w-2.5 h-2.5" /> : <Volume2 className="w-2.5 h-2.5" />}
-                </div>
+                {isLocked && (
+                  <span className="absolute -top-1 -right-1 bg-amber-400 text-black rounded-full p-0.5 shadow-md">
+                    <Lock className="w-2.5 h-2.5" strokeWidth={3} />
+                  </span>
+                )}
               </div>
               <span
                 className={`text-[10px] mt-1 font-mono transition-colors ${
-                  isPlaying ? 'text-accent' : isCurrentString ? 'text-primary' : 'text-muted-foreground/60'
+                  isLocked ? 'text-amber-300 font-bold' : isCurrentString ? 'text-primary' : 'text-muted-foreground/60'
                 }`}
               >
-                {note.frequency.toFixed(0)}Hz
+                {note.frequency.toFixed(2)}Hz
               </span>
-            </button>
+            </motion.button>
           );
         })}
       </div>
+      {clickable && (
+        <p className="text-center text-[10px] text-muted-foreground/70 font-mono">
+          {lockedString
+            ? `Locked to ${lockedString.note}${lockedString.octave} · click again to unlock`
+            : 'Tap a string to lock the tuner to it (intonation mode)'}
+        </p>
+      )}
     </div>
   );
 }

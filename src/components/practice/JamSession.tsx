@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -7,8 +8,9 @@ import {
   RHYTHM_PATTERNS, NOTE_NAMES, getChordName, getChordFrequencies,
   type Progression, type RhythmPattern,
 } from '@/lib/musicTheory';
+import { createMasterGain } from '@/hooks/useMasterVolume';
 
-function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number) {
+function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatOpen', time: number, dest: AudioNode) {
   if (type === 'kick') {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -17,7 +19,7 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
     gain.gain.setValueAtTime(0.8, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-    osc.connect(gain); gain.connect(ctx.destination);
+    osc.connect(gain); gain.connect(dest);
     osc.start(time); osc.stop(time + 0.3);
   } else if (type === 'snare') {
     const bufferSize = ctx.sampleRate * 0.15;
@@ -29,13 +31,13 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     noiseGain.gain.setValueAtTime(0.4, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
     const filter = ctx.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.setValueAtTime(1000, time);
-    noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(ctx.destination);
+    noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(dest);
     noise.start(time); noise.stop(time + 0.15);
     const osc = ctx.createOscillator(); const oscGain = ctx.createGain();
     osc.type = 'triangle'; osc.frequency.setValueAtTime(200, time);
     osc.frequency.exponentialRampToValueAtTime(100, time + 0.05);
     oscGain.gain.setValueAtTime(0.4, time); oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-    osc.connect(oscGain); oscGain.connect(ctx.destination); osc.start(time); osc.stop(time + 0.1);
+    osc.connect(oscGain); oscGain.connect(dest); osc.start(time); osc.stop(time + 0.1);
   } else {
     const dur = type === 'hihatOpen' ? 0.2 : 0.05;
     const bufferSize = ctx.sampleRate * dur;
@@ -46,17 +48,17 @@ function synthDrum(ctx: AudioContext, type: 'kick' | 'snare' | 'hihat' | 'hihatO
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.25, time); gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
     const filter = ctx.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.setValueAtTime(7000, time);
-    noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    noise.connect(filter); filter.connect(gain); gain.connect(dest);
     noise.start(time); noise.stop(time + dur + 0.01);
   }
 }
 
-function synthChord(ctx: AudioContext, frequencies: number[], time: number, duration: number) {
+function synthChord(ctx: AudioContext, frequencies: number[], time: number, duration: number, dest: AudioNode) {
   const masterGain = ctx.createGain();
   masterGain.gain.setValueAtTime(0.12, time);
   masterGain.gain.setValueAtTime(0.12, time + duration * 0.7);
   masterGain.gain.linearRampToValueAtTime(0.02, time + duration);
-  masterGain.connect(ctx.destination);
+  masterGain.connect(dest);
 
   frequencies.forEach((freq, i) => {
     const osc = ctx.createOscillator();
@@ -71,14 +73,14 @@ function synthChord(ctx: AudioContext, frequencies: number[], time: number, dura
   });
 }
 
-function countInClick(ctx: AudioContext, time: number, isDownbeat: boolean) {
+function countInClick(ctx: AudioContext, time: number, isDownbeat: boolean, dest: AudioNode) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'sine';
   osc.frequency.setValueAtTime(isDownbeat ? 1500 : 1000, time);
   gain.gain.setValueAtTime(0.4, time);
   gain.gain.exponentialRampToValueAtTime(0.01, time + 0.06);
-  osc.connect(gain); gain.connect(ctx.destination);
+  osc.connect(gain); gain.connect(dest);
   osc.start(time); osc.stop(time + 0.06);
 }
 
@@ -95,6 +97,8 @@ export function JamSession() {
   const timerRef = useRef<number | null>(null);
   const loopRef = useRef<number[]>([]);
   const playingRef = useRef(false);
+  const masterRef = useRef<GainNode | null>(null);
+  const releaseMasterRef = useRef<(() => void) | null>(null);
 
   const rootNote = CIRCLE_OF_FIFTHS_MAJOR[selectedKey];
   const rootNoteNormalized = ENHARMONIC_MAP[rootNote] || rootNote;
@@ -123,15 +127,16 @@ export function JamSession() {
     const totalDur = chordsPerBar * patternDur;
 
     // Schedule drums — one pattern per chord
+    const dest = masterRef.current ?? ctx.destination;
     for (let c = 0; c < chordsPerBar; c++) {
       const barStart = startTime + c * patternDur;
       selectedPattern.hits.forEach(hit => {
-        synthDrum(ctx, hit.type, barStart + hit.time * beatDur);
+        synthDrum(ctx, hit.type, barStart + hit.time * beatDur, dest);
       });
 
       // Schedule chord at start of each bar
       const freqs = getChordFrequencies(rootNoteNormalized, 3, selectedProg.degrees[c], selectedProg.quality[c]);
-      synthChord(ctx, freqs, barStart, patternDur * 0.9);
+      synthChord(ctx, freqs, barStart, patternDur * 0.9, dest);
     }
 
     // Schedule next loop
@@ -146,7 +151,10 @@ export function JamSession() {
 
   const start = useCallback(() => {
     if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
+      ctxRef.current = getSharedAudioContextSync();
+      const { master, release } = createMasterGain(ctxRef.current);
+      masterRef.current = master;
+      releaseMasterRef.current = release;
     }
     const ctx = ctxRef.current;
     if (ctx.state === 'suspended') ctx.resume();
@@ -156,10 +164,11 @@ export function JamSession() {
     setIsPlaying(true);
 
     const beatDur = 60 / bpm;
+    const dest = masterRef.current ?? ctx.destination;
 
     // Count-in: 4 clicks
     for (let i = 0; i < 4; i++) {
-      countInClick(ctx, ctx.currentTime + 0.05 + i * beatDur, i === 0);
+      countInClick(ctx, ctx.currentTime + 0.05 + i * beatDur, i === 0, dest);
     }
 
     // Visual count-in
@@ -197,7 +206,13 @@ export function JamSession() {
     loopRef.current.push(t);
   }, [bpm, selectedPattern, selectedProg, stop, scheduleLoop]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => () => {
+    stop();
+    releaseMasterRef.current?.();
+    masterRef.current = null;
+    releaseMasterRef.current = null;
+    ctxRef.current = null;
+  }, [stop]);
 
   return (
     <div className="space-y-5">

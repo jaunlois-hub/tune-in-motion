@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useBpmSync } from './useBpmSync';
+import { buildAudioConstraints} from './useAudioDevices';
 
 export type DrumGenre = 'ballad' | 'blues' | 'rock' | 'punk' | 'metal' | 'blast';
 
@@ -42,7 +44,6 @@ export function useSmartDrummer() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
-
   // Onset detection state
   const prevEnergyRef = useRef(0);
   const onsetTimesRef = useRef<number[]>([]);
@@ -143,14 +144,15 @@ export function useSmartDrummer() {
     try {
       let stream = existingStream;
       if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        });
+        stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints());
       }
       streamRef.current = existingStream ? null : stream; // Only own the stream if we created it
 
-      const ctx = new AudioContext();
+      const ctx = getSharedAudioContextSync();
       audioContextRef.current = ctx;
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch((err) => console.warn('AudioContext resume failed', err));
+      }
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
@@ -186,7 +188,6 @@ export function useSmartDrummer() {
       streamRef.current = null;
     }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
       audioContextRef.current = null;
     }
     analyserRef.current = null;

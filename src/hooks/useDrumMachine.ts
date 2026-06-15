@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { useMasterVolume } from './useMasterVolume';
 import { useBpmSync } from './useBpmSync';
-
 // 16-step patterns: [kick[], snare[], hihat[], openHat[], tom[], rimshot[]]
 // Velocity values: 0 = off, 0.1-1.0 = velocity
 export interface DrumPattern {
@@ -471,9 +471,14 @@ export function useDrumMachine() {
     timerIdRef.current = window.setTimeout(scheduler, 20);
   }, [getDestination]);
 
-  const start = useCallback(() => {
-    if (!audioContextRef.current) audioContextRef.current = new AudioContext();
-    if (audioContextRef.current.state === 'suspended') audioContextRef.current.resume();
+  const start = useCallback(async () => {
+    if (!audioContextRef.current) {
+      const ctx = getSharedAudioContextSync();
+      audioContextRef.current = ctx;
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      await audioContextRef.current.resume().catch((err) => console.warn('AudioContext resume failed', err));
+    }
     currentStepRef.current = 0;
     nextNoteTimeRef.current = audioContextRef.current.currentTime;
     isPlayingRef.current = true;
@@ -495,6 +500,8 @@ export function useDrumMachine() {
     return () => {
       isPlayingRef.current = false;
       if (timerIdRef.current) clearTimeout(timerIdRef.current);
+      compressorRef.current = null;
+      audioContextRef.current = null;
     };
   }, []);
 

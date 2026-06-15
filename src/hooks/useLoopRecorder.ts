@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { buildAudioConstraints } from './useAudioDevices';
 
 export interface Loop {
   id: string;
@@ -23,7 +24,7 @@ export function useLoopRecorder() {
 
   const startRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
+      const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints());
       mediaStreamRef.current = stream;
       audioChunksRef.current = [];
       const mr = new MediaRecorder(stream);
@@ -40,7 +41,9 @@ export function useLoopRecorder() {
       timerRef.current = window.setInterval(() => { setRecordingDuration((Date.now() - recordingStartRef.current) / 1000); }, 100);
       mr.start();
       setIsRecording(true);
-    } catch {}
+    } catch (err) {
+      console.error('Failed to start loop recording', err);
+    }
   }, []);
 
   const stopRecording = useCallback(() => {
@@ -96,7 +99,26 @@ export function useLoopRecorder() {
     URL.revokeObjectURL(url);
   }, [loops]);
 
-  useEffect(() => { return () => { if (timerRef.current) clearInterval(timerRef.current); audioElementsRef.current.forEach((a) => a.pause()); }; }, []);
+  // Snapshot audio elements at effect creation so the cleanup doesn't read a
+  // stale ref (React Hooks lint rule). Also stop the mic stream + recorder if
+  // the component unmounts while recording, otherwise the mic LED stays on.
+  useEffect(() => {
+    const audios = audioElementsRef.current;
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      audios.forEach((a) => a.pause());
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch { /* recorder already stopped */ }
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    };
+  }, []);
 
   return { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop };
 }

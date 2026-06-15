@@ -38,7 +38,7 @@ export function AudioVisualizer({ analyserNode, isActive, mode = 'bars', classNa
         let x = 0;
         for (let i = 0; i < bufferLength; i++) {
           const y = (waveformArray[i] / 128.0) * h / 2;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           x += slice;
         }
         ctx.stroke();
@@ -65,7 +65,7 @@ export function AudioVisualizer({ analyserNode, isActive, mode = 'bars', classNa
         ctx.beginPath();
         for (let i = 0; i < bufferLength; i++) {
           const x = (i / bufferLength) * w, y = h - (dataArray[i] / 255) * h;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
       } else {

@@ -18,33 +18,62 @@ function EffectKnob({ label, value, onChange, min = 0, max = 1, step = 0.01, uni
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; unit?: string;
 }) {
   const display = unit === '%' ? Math.round(value * 100) : value.toFixed(2);
-  const rotation = ((value - min) / (max - min)) * 270 - 135;
+  const norm = (value - min) / (max - min); // 0..1
+  const rotation = norm * 270 - 135;
+  // "Active" = knob meaningfully off the floor for percent-style controls, or anywhere off-center for bipolar EQ
+  const isEqLike = label.toLowerCase().includes('bass') || label.toLowerCase().includes('mid') || label.toLowerCase().includes('treble');
+  const active = isEqLike ? Math.abs(norm - 0.5) > 0.05 : norm > 0.05;
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-14 h-14">
-        <motion.div className="absolute inset-0 rounded-full" style={{ rotate: rotation }}>
-          <div className="absolute w-1 h-4 bg-primary rounded-full top-2 left-1/2 -translate-x-1/2" />
+    <div className="flex flex-col items-center gap-2 group">
+      <div className={`relative w-14 h-14 transition-transform duration-200 group-hover:scale-105`}>
+        {/* Ambient glow when active */}
+        <div
+          className={`absolute -inset-1 rounded-full transition-opacity duration-300 ${active ? 'opacity-100' : 'opacity-0'}`}
+          style={{ background: 'radial-gradient(closest-side, hsl(var(--primary) / 0.35), transparent 70%)' }}
+        />
+        {/* Bezel */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-900 shadow-inner" />
+        {/* Inner cap with metallic gradient */}
+        <div className="absolute inset-1.5 rounded-full bg-gradient-to-br from-zinc-300 via-zinc-500 to-zinc-800 shadow-md" />
+        {/* Pointer */}
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          animate={{ rotate: rotation }}
+          transition={{ type: 'spring', stiffness: 220, damping: 22 }}
+        >
+          <div className={`absolute w-1.5 h-3.5 rounded-full top-1.5 left-1/2 -translate-x-1/2 transition-colors ${active ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-foreground/70'}`} />
         </motion.div>
+        {/* Arc indicator overlay */}
         <svg className="absolute inset-0 w-full h-full -rotate-[135deg]" viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--border))" strokeWidth="3" strokeDasharray="132" strokeDashoffset="44" strokeLinecap="round" />
-          <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="132" strokeDashoffset={132 - ((value - min) / (max - min)) * 88} strokeLinecap="round" className="drop-shadow-[0_0_8px_hsl(var(--primary))]" />
+          <circle cx="32" cy="32" r="28" fill="none" stroke="hsl(var(--border))" strokeWidth="2.5" strokeDasharray="132" strokeDashoffset="44" strokeLinecap="round" />
+          <circle
+            cx="32" cy="32" r="28"
+            fill="none"
+            stroke="hsl(var(--primary))"
+            strokeWidth="2.5"
+            strokeDasharray="132"
+            strokeDashoffset={132 - norm * 88}
+            strokeLinecap="round"
+            className={`transition-all duration-200 ${active ? 'drop-shadow-[0_0_6px_hsl(var(--primary))]' : 'opacity-60'}`}
+          />
         </svg>
       </div>
       <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} className="w-16" />
       <div className="text-center">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className="text-xs font-mono text-primary">{display}{unit === '%' ? '%' : unit}</p>
+        <p className={`text-xs font-mono transition-colors ${active ? 'text-primary' : 'text-muted-foreground'}`}>{display}{unit === '%' ? '%' : unit}</p>
       </div>
     </div>
   );
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'tone' | 'modulation' | 'time' | 'pitch';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
   { id: 'dynamics', label: 'Dynamics', icon: '📊' },
-  { id: 'eq', label: 'EQ', icon: '🎚️' },
+  { id: 'eq', label: 'Pre EQ', icon: '🎚️' },
+  { id: 'tone', label: 'Tone Stack', icon: '🔊' },
   { id: 'modulation', label: 'Modulation', icon: '🌊' },
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
@@ -63,6 +92,11 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'eqBass', label: 'Bass' },
     { key: 'eqMid', label: 'Mid' },
     { key: 'eqTreble', label: 'Treble' },
+  ],
+  tone: [
+    { key: 'postEqBass', label: 'Bass' },
+    { key: 'postEqMid', label: 'Mid' },
+    { key: 'postEqTreble', label: 'Treble' },
   ],
   modulation: [
     { key: 'chorus', label: 'Chorus' },
@@ -301,7 +335,7 @@ export function EffectsSection() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={cn("w-3 h-3 rounded-full", effectsActive ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
-            <h3 className="font-display text-base font-bold">🎸 Guitar Effects</h3>
+            <h3 className="font-display text-base font-bold">Guitar Effects</h3>
           </div>
         </div>
 
@@ -313,22 +347,29 @@ export function EffectsSection() {
         ) : (
           <>
             {/* Quick Presets */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {QUICK_PRESETS.map((qp) => (
-                <button
+                <motion.button
                   key={qp.name}
                   onClick={() => updateSettingsBulk(qp.settings as Partial<EffectSettings>)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-accent/20 text-accent-foreground hover:bg-accent/40 border border-accent/20 hover:border-primary/30 transition-all"
+                  whileHover={{ y: -2, scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-display font-semibold whitespace-nowrap
+                             bg-gradient-to-br from-accent/30 to-accent/10
+                             text-accent-foreground hover:from-primary/20 hover:to-accent/30
+                             border border-accent/40 hover:border-primary/60
+                             shadow-sm hover:shadow-[0_4px_14px_rgba(45,212,191,0.18)]
+                             transition-all duration-200"
                 >
-                  <span>{qp.emoji}</span>
+                  <span className="text-base leading-none">{qp.emoji}</span>
                   <span>{qp.name}</span>
-                </button>
+                </motion.button>
               ))}
             </div>
 
             {/* Cabinet Type Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium">🔊 Cabinet:</span>
+              <span className="text-xs text-muted-foreground font-medium">Cabinet:</span>
               <div className="flex gap-1">
                 {CABINET_TYPES.map((cab) => (
                   <button
@@ -473,7 +514,7 @@ export function EffectsSection() {
             <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
               <div className="flex items-center gap-3">
                 <Youtube className="w-5 h-5 text-destructive" />
-                <h3 className="font-display text-base font-bold">🎯 Tone Matcher</h3>
+                <h3 className="font-display text-base font-bold">Tone Matcher</h3>
                 <span className="text-[10px] text-muted-foreground">YouTube link → auto-match</span>
               </div>
               {toneMatchOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -499,7 +540,7 @@ export function EffectsSection() {
             <button className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
               <div className="flex items-center gap-3">
                 <div className={cn("w-3 h-3 rounded-full", drumsPlaying ? "bg-tuner-perfect shadow-[0_0_8px_hsl(var(--tuner-perfect))]" : "bg-muted")} />
-                <h3 className="font-display text-base font-bold">🥁 Drum Machine</h3>
+                <h3 className="font-display text-base font-bold">Drum Machine</h3>
                 <span className="text-xs text-muted-foreground">{DRUM_PATTERNS[currentPattern]?.name} • {bpm} BPM</span>
               </div>
               {drumsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
