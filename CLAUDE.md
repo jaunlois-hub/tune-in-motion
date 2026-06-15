@@ -48,7 +48,7 @@ Each is a thin wrapper in `src/components/sections/` that composes lower-level f
 | Tuner (always open) | `components/GuitarTuner.tsx` | `StrobeWheel`, `NeedleTuner`, `NoteDisplay`, `CentsMeter`, `TuningSelector`, `StringIndicator`, `FrequencyDisplay`, `A4Calibration`, `SignalStrength`, `TuningHistoryPanel` |
 | Setup | `sections/SetupSection.tsx` | `IntonationChecker`, `GuitarSetupGuide` (tabbed) |
 | Practice | `sections/PracticeSection.tsx` | `MetronomeView`, `SmartDrummer`, `ChordRecognitionView`, `CircleOfFifths`, `RhythmPatterns`, `RiffsAndScales`, `SpeedTrainer`, `JamSession` |
-| Effects | `sections/EffectsSection.tsx` | `StudioView`, `ChordProgressionBuilder`, `YouTubeToneMatcher`, etc. |
+| Effects | `sections/EffectsSection.tsx` | `EffectsRack` (inline), `ChordProgressionBuilder`, `YouTubeToneMatcher`, etc. |
 | Recording | `sections/RecordingSection.tsx` | `VocalRecorderView`, loop recorder UI |
 
 ### Audio pipeline (the core of the app)

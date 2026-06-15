@@ -24,7 +24,7 @@ import { AudioDeviceSelector } from './AudioDeviceSelector';
 export function GuitarTuner() {
   const { selectedTuning, setSelectedTuning } = useTuningSelection();
   const { a4, setA4, mode: tunerMode, setMode: setTunerMode } = useTunerPrefs();
-  const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection();
+  const { isListening, pitchData, error, startListening, stopListening } = usePitchDetection(a4);
   const { sessions, logReading, endSession, clearHistory } = useTuningHistory();
   const { isMonitoring, monitorVolume, startMonitoring, stopMonitoring, updateVolume } = useAudioMonitoring();
   const wasListeningRef = useRef(false);
@@ -252,8 +252,8 @@ export function GuitarTuner() {
           size="lg"
           className={`mt-2 px-8 py-6 text-lg font-display font-bold rounded-full transition-all duration-300 ${
             isListening
-              ? 'bg-destructive hover:bg-destructive/90 shadow-[0_0_30px_rgba(255,100,100,0.3)]'
-              : 'bg-primary hover:bg-primary/90 shadow-[0_0_30px_rgba(45,212,191,0.3)]'
+              ? 'bg-destructive hover:bg-destructive/90 shadow-[0_0_30px_hsl(var(--destructive)/0.3)]'
+              : 'bg-primary hover:bg-primary/90 shadow-[0_0_30px_hsl(var(--primary)/0.3)]'
           }`}
         >
           {isListening ? (

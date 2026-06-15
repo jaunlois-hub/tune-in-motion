@@ -187,3 +187,17 @@
     transform: translateY(0);
   }
 }
+
+/* Accessibility: respect the OS "reduce motion" setting for photosensitivity/vestibular safety.
+   Neutralises CSS animations + transitions globally; JS-driven motion (e.g. the strobe canvas)
+   is gated separately via the useReducedMotion hook. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

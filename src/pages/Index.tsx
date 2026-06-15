@@ -42,6 +42,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-card/80">
+      {/* Skip link — first focusable element, visible only on keyboard focus */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-full focus:bg-primary focus:text-primary-foreground focus:font-display focus:text-sm focus:shadow-lg"
+      >
+        Skip to content
+      </a>
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
         <div className="container mx-auto px-4 py-3">
@@ -72,6 +79,8 @@ const Index = () => {
                 onClick={() => setMobileNavOpen((v) => !v)}
                 className="md:hidden w-8 h-8 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
                 aria-label="Toggle navigation"
+                aria-expanded={mobileNavOpen}
+                aria-controls="mobile-nav"
               >
                 {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </button>
@@ -80,7 +89,7 @@ const Index = () => {
 
           {/* Mobile drawer */}
           {mobileNavOpen && (
-            <nav className="md:hidden mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-1.5">
+            <nav id="mobile-nav" className="md:hidden mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-1.5">
               {NAV_GROUPS.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
@@ -97,7 +106,7 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6 pb-12 space-y-8">
+      <main id="main-content" className="container mx-auto px-4 py-6 pb-12 space-y-8">
         {/* TUNE — strobe tuner & string references */}
         <SectionGroup id="tune" label="Tune" caption="Strobe accuracy • String references" icon={Crosshair}>
           <div className="relative">

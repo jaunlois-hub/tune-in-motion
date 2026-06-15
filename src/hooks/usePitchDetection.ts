@@ -16,8 +16,8 @@ interface PitchData {
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const A4_FREQUENCY = 440;
 
-function frequencyToNote(frequency: number): { note: string; octave: number; cents: number } {
-  const semitonesFromA4 = 12 * Math.log2(frequency / A4_FREQUENCY);
+function frequencyToNote(frequency: number, a4: number = A4_FREQUENCY): { note: string; octave: number; cents: number } {
+  const semitonesFromA4 = 12 * Math.log2(frequency / a4);
   const roundedSemitones = Math.round(semitonesFromA4);
   const cents = (semitonesFromA4 - roundedSemitones) * 100;
 
@@ -112,10 +112,14 @@ const EMA_ALPHA = 0.25; // Smoother exponential moving average
 // Long enough to read the cents value after a note stops ringing, short enough not to feel sticky.
 const SILENCE_HOLD_FRAMES = 90;
 
-export function usePitchDetection() {
+export function usePitchDetection(a4: number = A4_FREQUENCY) {
   const [isListening, setIsListening] = useState(false);
   const [pitchData, setPitchData] = useState<PitchData | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Live ref so the rAF analyze loop reads the latest A4 without restarting the stream.
+  const a4Ref = useRef(a4);
+  a4Ref.current = a4;
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -165,7 +169,7 @@ export function usePitchDetection() {
       }
 
       const smoothed = emaRef.current;
-      const { note, octave, cents } = frequencyToNote(smoothed);
+      const { note, octave, cents } = frequencyToNote(smoothed, a4Ref.current);
 
       // Hysteresis: require 2 consistent reads before switching displayed note
       const noteKey = `${note}${octave}`;

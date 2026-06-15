@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface StrobeWheelProps {
   cents: number;
@@ -11,6 +12,7 @@ export function StrobeWheel({ cents, isActive, clarity }: StrobeWheelProps) {
   const animationRef = useRef<number>(0);
   const rotationRef = useRef(0);
   const smoothedCentsRef = useRef(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -65,7 +67,9 @@ export function StrobeWheel({ cents, isActive, clarity }: StrobeWheelProps) {
       ctx.fill();
 
       // === Strobe segments — 3 concentric rings for depth ===
-      const rotationSpeed = isActive ? smoothedCentsRef.current * 0.003 : 0;
+      // Reduced-motion: freeze the spin (the rotating strobe is the photosensitivity hazard);
+      // colour/clarity feedback below still updates so the tuner stays usable.
+      const rotationSpeed = isActive && !reduceMotion ? smoothedCentsRef.current * 0.003 : 0;
       rotationRef.current += rotationSpeed;
 
       const rings = [
@@ -150,7 +154,7 @@ export function StrobeWheel({ cents, isActive, clarity }: StrobeWheelProps) {
     return () => {
       cancelAnimationFrame(animationRef.current);
     };
-  }, [cents, isActive, clarity]);
+  }, [cents, isActive, clarity, reduceMotion]);
 
   return (
     <div className="relative">
