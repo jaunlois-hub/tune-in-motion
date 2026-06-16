@@ -20,6 +20,7 @@ import { useAudioMonitoring } from '@/hooks/useAudioMonitoring';
 import { useTuningSelection } from '@/hooks/useTuningSelection';
 import { useTunerPrefs } from '@/hooks/useTunerPrefs';
 import { AudioDeviceSelector } from './AudioDeviceSelector';
+import { TabBar } from '@/components/ui/TabBar';
 
 export function GuitarTuner() {
   const { selectedTuning, setSelectedTuning } = useTuningSelection();
@@ -130,41 +131,27 @@ export function GuitarTuner() {
         </div>
       )}
 
-        {/* Controls row */}
-        <div className="flex flex-col items-center gap-3 w-full">
+        {/* Control deck — audio I/O + tuning/calibration/mode grouped as one rack panel */}
+        <div className="w-full max-w-md mx-auto space-y-2.5">
           <AudioDeviceSelector />
-          <div className="flex items-center gap-3 w-full max-w-xs">
+          <div className="rounded-xl border border-border bg-card/40 p-3 space-y-3">
             <TuningSelector
               selectedTuning={selectedTuning}
               onTuningChange={setSelectedTuning}
             />
-          </div>
-          <div className="flex items-center gap-4">
-            <A4Calibration a4={a4} onChange={setA4} />
-            {/* Mode switcher */}
-            <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border">
-              <button
-                onClick={() => setTunerMode('strobe')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-display transition-all ${
-                  tunerMode === 'strobe'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Disc className="w-3 h-3" />
-                Strobe
-              </button>
-              <button
-                onClick={() => setTunerMode('needle')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-display transition-all ${
-                  tunerMode === 'needle'
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Gauge className="w-3 h-3" />
-                Needle
-              </button>
+            <div className="flex items-center justify-between gap-3 flex-wrap border-t border-border/50 pt-3">
+              <A4Calibration a4={a4} onChange={setA4} />
+              <TabBar
+                tabs={[
+                  { id: 'strobe', label: 'Strobe', icon: Disc },
+                  { id: 'needle', label: 'Needle', icon: Gauge },
+                ]}
+                activeId={tunerMode}
+                onChange={(id) => setTunerMode(id as 'strobe' | 'needle')}
+                groupId="tuner-mode"
+                variant="underline"
+                size="sm"
+              />
             </div>
           </div>
         </div>
