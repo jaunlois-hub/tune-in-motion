@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Wrench, Ruler, Crosshair } from 'lucide-react';
+import { TabBar } from '@/components/ui/TabBar';
 import { IntonationChecker } from '@/components/IntonationChecker';
 import { GuitarSetupGuide } from '@/components/GuitarSetupGuide';
 import { StratSetupDiagram } from '@/components/setup/StratSetupDiagram';
@@ -17,22 +18,13 @@ export function SetupSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border w-fit mx-auto flex-wrap justify-center">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-display transition-all ${
-              activeTab === id
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={TABS}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as SetupTab)}
+        groupId="setup-section"
+        className="mx-auto w-fit flex-wrap justify-center"
+      />
 
       {activeTab === 'diagram' && <StratSetupDiagram />}
       {activeTab === 'intonation' && <IntonationChecker />}

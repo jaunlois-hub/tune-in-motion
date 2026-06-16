@@ -20,6 +20,7 @@ import { SectionGroup } from '@/components/sections/SectionGroup';
 import { SectionCard } from '@/components/sections/SectionCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AudioDiagnosticsPanel } from '@/components/diagnostics/AudioDiagnosticsPanel';
+import { useActiveSection } from '@/hooks/useActiveSection';
 
 const NAV_GROUPS = [
   { id: 'tune', label: 'Tune', icon: Crosshair },
@@ -34,6 +35,7 @@ const scrollToSection = (id: string) => {
 
 const Index = () => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const activeSection = useActiveSection();
 
   const handleNav = (id: string) => {
     scrollToSection(id);
@@ -61,16 +63,24 @@ const Index = () => {
             </div>
 
             <nav className="hidden md:flex items-center gap-1">
-              {NAV_GROUPS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => handleNav(id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display tracking-wide text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
+              {NAV_GROUPS.map(({ id, label, icon: Icon }) => {
+                const isActive = activeSection === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => handleNav(id)}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display tracking-wide border transition-all ${
+                      isActive
+                        ? 'text-primary bg-primary/10 border-primary/30 shadow-glow-2'
+                        : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-secondary/50'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                );
+              })}
             </nav>
 
             <div className="flex items-center gap-1">
@@ -90,16 +100,24 @@ const Index = () => {
           {/* Mobile drawer */}
           {mobileNavOpen && (
             <nav id="mobile-nav" className="md:hidden mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-1.5">
-              {NAV_GROUPS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => handleNav(id)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-display tracking-wide text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all"
-                >
-                  <Icon className="w-4 h-4 text-primary/80" />
-                  {label}
-                </button>
-              ))}
+              {NAV_GROUPS.map(({ id, label, icon: Icon }) => {
+                const isActive = activeSection === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => handleNav(id)}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-display tracking-wide border transition-all ${
+                      isActive
+                        ? 'text-primary bg-primary/10 border-primary/30'
+                        : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-secondary/50'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-primary/80'}`} />
+                    {label}
+                  </button>
+                );
+              })}
             </nav>
           )}
         </div>

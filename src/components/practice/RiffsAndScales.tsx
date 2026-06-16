@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Square, Guitar, Music2, Repeat } from 'lucide-react';
+import { TabBar } from '@/components/ui/TabBar';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -288,31 +289,21 @@ export function RiffsAndScales() {
   }, [stopPlaying]);
 
   const difficultyColor = (d: string) =>
-    d === 'Easy' ? 'text-green-500' : d === 'Medium' ? 'text-yellow-500' : 'text-red-500';
+    d === 'Easy' ? 'text-status-good' : d === 'Medium' ? 'text-status-warn' : 'text-status-bad';
 
   return (
     <div className="space-y-5">
       {/* Sub-tab switcher */}
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border w-fit mx-auto">
-        <button
-          onClick={() => { setSubTab('riffs'); stopPlaying(); }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
-            subTab === 'riffs' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Guitar className="w-3.5 h-3.5" />
-          Riffs & Licks
-        </button>
-        <button
-          onClick={() => { setSubTab('scales'); stopPlaying(); }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-display transition-all ${
-            subTab === 'scales' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Music2 className="w-3.5 h-3.5" />
-          Scales
-        </button>
-      </div>
+      <TabBar
+        tabs={[
+          { id: 'riffs', label: 'Riffs & Licks', icon: Guitar },
+          { id: 'scales', label: 'Scales', icon: Music2 },
+        ]}
+        activeId={subTab}
+        onChange={(id) => { setSubTab(id as SubTab); stopPlaying(); }}
+        groupId="riffs-scales"
+        className="mx-auto w-fit"
+      />
 
       {subTab === 'riffs' && (
         <div className="space-y-4">
