@@ -475,7 +475,7 @@ function ModesReference() {
               {n}
             </span>
           ))}
-          <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-display font-bold bg-primary/40 text-primary-foreground border border-primary/60 opacity-70">
+          <span className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-display font-bold bg-primary/40 text-foreground border border-primary/60 opacity-70">
             {notes[0]}
           </span>
         </div>

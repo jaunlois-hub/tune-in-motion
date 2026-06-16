@@ -356,7 +356,7 @@ export function EffectsSection() {
                   whileTap={{ scale: 0.96 }}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-display font-semibold whitespace-nowrap
                              bg-gradient-to-br from-accent/30 to-accent/10
-                             text-accent-foreground hover:from-primary/20 hover:to-accent/30
+                             text-accent hover:from-primary/20 hover:to-accent/30
                              border border-accent/40 hover:border-primary/60
                              shadow-sm hover:shadow-glow-2
                              transition-all duration-200"

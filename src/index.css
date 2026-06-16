@@ -16,7 +16,7 @@
     --popover-foreground: 220 25% 12%;
 
     --primary: 350 85% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 350 30% 12%;
 
     --secondary: 220 12% 91%;
     --secondary-foreground: 220 20% 20%;
@@ -25,7 +25,13 @@
     --muted-foreground: 220 10% 45%;
 
     --accent: 25 95% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent-foreground: 25 100% 10%;
+
+    /* Semantic status colors (light) */
+    --status-good: 140 70% 38%;
+    --status-warn: 38 92% 45%;
+    --status-bad: 0 80% 50%;
+    --status-info: 220 90% 52%;
 
     --destructive: 0 85% 55%;
     --destructive-foreground: 0 0% 100%;
@@ -73,7 +79,8 @@
     --popover-foreground: 40 30% 95%;
 
     --primary: 350 90% 58%;
-    --primary-foreground: 0 0% 100%;
+    /* dark crimson on the bright crimson button → ~14.8:1 (white was 3.84:1, failed AA) */
+    --primary-foreground: 350 20% 10%;
 
     --secondary: 240 12% 14%;
     --secondary-foreground: 40 20% 90%;
@@ -82,7 +89,14 @@
     --muted-foreground: 40 10% 55%;
 
     --accent: 25 100% 55%;
-    --accent-foreground: 0 0% 100%;
+    /* deep orange-near-black on the bright accent → ~16:1 (white was 2.62:1, failed AA) */
+    --accent-foreground: 25 100% 8%;
+
+    /* Semantic status colors — reuse the verified tuner hues (status-bad = red hue 0, NOT crimson) */
+    --status-good: 140 90% 48%;
+    --status-warn: 45 90% 55%;
+    --status-bad: 0 100% 60%;
+    --status-info: 220 100% 65%;
 
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 100%;

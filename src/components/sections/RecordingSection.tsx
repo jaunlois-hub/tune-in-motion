@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { useLoopRecorder } from '@/hooks/useLoopRecorder';
 import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
+import { TabBar } from '@/components/ui/TabBar';
 
 function formatDuration(s: number) {
   const m = Math.floor(s / 60);
@@ -14,7 +15,16 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
+// Stable decorative waveform heights — computed once, NOT per-render (was Math.random()
+// inline, which re-rolled every render and made the bars flicker).
+const WAVEFORM_BARS = Array.from({ length: 20 }, (_, i) => 25 + Math.round(Math.abs(Math.sin(i * 0.9)) * 70));
+
 type RecordTab = 'loops' | 'vocals';
+
+const RECORD_TABS = [
+  { id: 'loops', label: 'Loop Recorder', icon: Mic },
+  { id: 'vocals', label: 'Vocal Recorder', icon: Mic2 },
+];
 
 export function RecordingSection() {
   const [activeTab, setActiveTab] = useState<RecordTab>('loops');
@@ -24,30 +34,13 @@ export function RecordingSection() {
   return (
     <div className="space-y-4">
       {/* Tab Switcher */}
-      <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border w-fit mx-auto">
-        <button
-          onClick={() => setActiveTab('loops')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-display transition-all ${
-            activeTab === 'loops'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Mic className="w-3.5 h-3.5" />
-          Loop Recorder
-        </button>
-        <button
-          onClick={() => setActiveTab('vocals')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-display transition-all ${
-            activeTab === 'vocals'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Mic2 className="w-3.5 h-3.5" />
-          Vocal Recorder
-        </button>
-      </div>
+      <TabBar
+        tabs={RECORD_TABS}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as RecordTab)}
+        groupId="recording"
+        className="mx-auto w-fit"
+      />
 
       {activeTab === 'vocals' ? (
         <VocalRecorderView />
@@ -96,9 +89,9 @@ export function RecordingSection() {
                         </>
                       )}
                       <div className="flex items-end gap-0.5 h-6 relative z-10">
-                        {Array.from({ length: 20 }).map((_, i) => (
-                          <motion.div key={i} className="w-0.5 bg-primary rounded-full" style={{ height: `${20 + Math.random() * 80}%` }}
-                            animate={playingLoopId === loop.id ? { height: ['20%', `${20 + Math.random() * 80}%`, '20%'] } : {}}
+                        {WAVEFORM_BARS.map((h, i) => (
+                          <motion.div key={i} className="w-0.5 bg-primary rounded-full" style={{ height: `${h}%` }}
+                            animate={playingLoopId === loop.id ? { height: ['20%', `${h}%`, '20%'] } : {}}
                             transition={{ duration: 0.3, repeat: Infinity, delay: i * 0.02 }}
                           />
                         ))}

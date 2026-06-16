@@ -60,6 +60,12 @@ export default {
           glow: "hsl(var(--tuner-glow))",
           strobe: "hsl(var(--tuner-strobe))",
         },
+        status: {
+          good: "hsl(var(--status-good))",
+          warn: "hsl(var(--status-warn))",
+          bad: "hsl(var(--status-bad))",
+          info: "hsl(var(--status-info))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

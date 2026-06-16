@@ -72,7 +72,7 @@ export function SmartDrummer({ compact = false }: SmartDrummerProps) {
               className={cn(
                 "w-3 h-3 rounded-full transition-colors",
                 isFollowing
-                  ? detectedBpm > 0 ? "bg-tuner-perfect" : "bg-primary animate-pulse"
+                  ? detectedBpm > 0 ? "bg-tuner-perfect" : "bg-primary animate-pulse-glow"
                   : "bg-muted"
               )}
               animate={beatPulse ? { scale: [1, 1.8, 1] } : {}}
@@ -152,7 +152,7 @@ export function SmartDrummer({ compact = false }: SmartDrummerProps) {
             className={cn(
               "w-4 h-4 rounded-full",
               isFollowing
-                ? detectedBpm > 0 ? "bg-tuner-perfect shadow-[0_0_10px_hsl(var(--tuner-perfect))]" : "bg-primary animate-pulse"
+                ? detectedBpm > 0 ? "bg-tuner-perfect shadow-[0_0_10px_hsl(var(--tuner-perfect))]" : "bg-primary animate-pulse-glow"
                 : "bg-muted"
             )}
             animate={beatPulse ? { scale: [1, 2, 1] } : {}}
@@ -258,7 +258,7 @@ export function SmartDrummer({ compact = false }: SmartDrummerProps) {
                 currentPattern === key
                   ? "bg-primary/20 text-primary border border-primary/30"
                   : key === suggestedPattern && detectedBpm > 0
-                    ? "bg-accent/30 text-accent-foreground border border-accent/30"
+                    ? "bg-accent/30 text-accent border border-accent/30"
                     : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
               )}
             >
