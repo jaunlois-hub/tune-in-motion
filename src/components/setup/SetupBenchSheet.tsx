@@ -135,7 +135,7 @@ export function SetupBenchSheet({ model, factory, specs, hasAnyOverride }: Props
                   onClick={handleCopy}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/50 border border-border/50 text-[11px] font-display hover:bg-secondary"
                 >
-                  {copied ? <ClipboardCheck className="w-3.5 h-3.5 text-green-400" /> : <Clipboard className="w-3.5 h-3.5" />}
+                  {copied ? <ClipboardCheck className="w-3.5 h-3.5 text-status-good" /> : <Clipboard className="w-3.5 h-3.5" />}
                   {copied ? 'Copied' : 'Copy markdown'}
                 </button>
                 <button

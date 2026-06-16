@@ -337,9 +337,9 @@ export function RiffsAndScales() {
                     <div className="font-display font-semibold truncate">{riff.name}</div>
                     <span className={`shrink-0 text-[8.5px] uppercase tracking-wider px-1.5 py-0.5 rounded-full leading-none ${
                       selected ? 'bg-primary-foreground/15' :
-                      riff.difficulty === 'Easy' ? 'bg-green-500/20 text-green-400' :
-                      riff.difficulty === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-red-500/20 text-red-400'
+                      riff.difficulty === 'Easy' ? 'bg-status-good/20 text-status-good' :
+                      riff.difficulty === 'Medium' ? 'bg-status-warn/20 text-status-warn' :
+                      'bg-status-bad/20 text-status-bad'
                     }`}>{riff.difficulty}</span>
                   </div>
                   <div className="text-[10px] opacity-70 truncate relative z-10">{riff.artist}</div>
@@ -363,9 +363,9 @@ export function RiffsAndScales() {
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className={`font-display font-semibold px-2 py-0.5 rounded-full ${
-                  selectedRiff.difficulty === 'Easy' ? 'bg-green-500/15 text-green-400' :
-                  selectedRiff.difficulty === 'Medium' ? 'bg-yellow-500/15 text-yellow-400' :
-                  'bg-red-500/15 text-red-400'
+                  selectedRiff.difficulty === 'Easy' ? 'bg-status-good/15 text-status-good' :
+                  selectedRiff.difficulty === 'Medium' ? 'bg-status-warn/15 text-status-warn' :
+                  'bg-status-bad/15 text-status-bad'
                 }`}>{selectedRiff.difficulty}</span>
                 <span className="font-mono text-muted-foreground bg-secondary/40 px-2 py-0.5 rounded-full">{selectedRiff.bpm} BPM</span>
               </div>

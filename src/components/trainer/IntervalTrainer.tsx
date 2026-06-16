@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, Play, RotateCcw, Eye, EyeOff, Flame, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TabBar } from '@/components/ui/TabBar';
 import { ensurePluckBuffer, playPluckedNote } from '@/lib/pluckedSynth';
 import { withAudioFeature } from '@/lib/audioDiagnostics';
 import { getSharedAudioContext } from '@/lib/sharedAudioContext';
@@ -359,49 +360,45 @@ export function IntervalTrainer() {
 
       {/* Mode + difficulty + direction */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border">
-          {(['visual', 'audio', 'mixed'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-display uppercase tracking-wider transition-all ${
-                mode === m ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {m === 'visual' ? <Eye className="w-3 h-3" /> : m === 'audio' ? <EyeOff className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-              {m}
-            </button>
-          ))}
-        </div>
+        <TabBar
+          tabs={[
+            { id: 'visual', label: 'Visual', icon: Eye },
+            { id: 'audio', label: 'Audio', icon: EyeOff },
+            { id: 'mixed', label: 'Mixed', icon: Volume2 },
+          ]}
+          activeId={mode}
+          onChange={(id) => setMode(id as Mode)}
+          groupId="interval-mode"
+          variant="underline"
+          size="sm"
+        />
 
-        <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border">
-          {(['easy', 'normal', 'hard'] as const).map((d) => (
-            <button
-              key={d}
-              onClick={() => setDifficulty(d)}
-              className={`px-2.5 py-1 rounded-full text-[10px] font-display uppercase tracking-wider transition-all ${
-                difficulty === d ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
+        <TabBar
+          tabs={[
+            { id: 'easy', label: 'Easy' },
+            { id: 'normal', label: 'Normal' },
+            { id: 'hard', label: 'Hard' },
+          ]}
+          activeId={difficulty}
+          onChange={(id) => setDifficulty(id as Difficulty)}
+          groupId="interval-difficulty"
+          variant="underline"
+          size="sm"
+        />
 
         {(mode === 'audio' || mode === 'mixed') && (
-          <div className="flex items-center gap-1 bg-secondary/50 rounded-full p-1 border border-border">
-            {(['asc', 'desc', 'harm'] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => setDirection(d)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-display uppercase tracking-wider transition-all ${
-                  direction === d ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {d === 'asc' ? '↑ Asc' : d === 'desc' ? '↓ Desc' : '⊕ Harm'}
-              </button>
-            ))}
-          </div>
+          <TabBar
+            tabs={[
+              { id: 'asc', label: '↑ Asc' },
+              { id: 'desc', label: '↓ Desc' },
+              { id: 'harm', label: '⊕ Harm' },
+            ]}
+            activeId={direction}
+            onChange={(id) => setDirection(id as Direction)}
+            groupId="interval-direction"
+            variant="underline"
+            size="sm"
+          />
         )}
 
         <button
@@ -458,9 +455,9 @@ export function IntervalTrainer() {
                 disabled={!!feedback || !inPool}
                 className={`px-2 py-2 rounded-md text-xs font-display transition-all ${
                   wasCorrect
-                    ? 'bg-green-500 text-white shadow-lg'
+                    ? 'bg-status-good text-white shadow-lg'
                     : wasRevealed
-                      ? 'bg-green-500/40 text-white animate-pulse'
+                      ? 'bg-status-good/40 text-white animate-pulse'
                       : inPool
                         ? 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
                         : 'bg-secondary/20 text-muted-foreground/40 border border-border/30'

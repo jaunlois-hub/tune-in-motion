@@ -50,7 +50,7 @@ const SETUP_SECTIONS = [
         </ol>
         <p><strong className="text-foreground">Too much relief (bow)?</strong> Tighten truss rod (clockwise). High action in middle of neck.</p>
         <p><strong className="text-foreground">Back bow (reverse)?</strong> Loosen truss rod (counter-clockwise). Buzz on lower frets.</p>
-        <p className="text-yellow-400/80">⚠️ Adjust in 1/4 turn increments. Wait 30 minutes between adjustments. If in doubt, see a luthier.</p>
+        <p className="text-status-warn/80">⚠️ Adjust in 1/4 turn increments. Wait 30 minutes between adjustments. If in doubt, see a luthier.</p>
       </div>
     ),
   },

@@ -370,9 +370,9 @@ function FretboardTrainer() {
             disabled={!!feedback}
             className={`px-2 py-2 rounded-md text-xs font-display font-bold transition-all ${
               feedback === 'correct' && target?.note === n
-                ? 'bg-green-500 text-white shadow-lg'
+                ? 'bg-status-good text-white shadow-lg'
                 : feedback === 'wrong' && target?.note === n
-                  ? 'bg-green-500/40 text-white animate-pulse'
+                  ? 'bg-status-good/40 text-white animate-pulse'
                   : 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
             } disabled:opacity-60`}
           >
@@ -714,8 +714,8 @@ function IntervalEarTraining() {
               onClick={() => guess(iv.semis)}
               disabled={!!feedback}
               className={`px-2 py-2 rounded-md text-xs font-display transition-all ${
-                wasCorrect ? 'bg-green-500 text-white shadow-lg' :
-                wasRevealed ? 'bg-green-500/40 text-white animate-pulse' :
+                wasCorrect ? 'bg-status-good text-white shadow-lg' :
+                wasRevealed ? 'bg-status-good/40 text-white animate-pulse' :
                 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
               } disabled:opacity-60`}
             >

@@ -125,9 +125,9 @@ export function IntonationChecker() {
 
   const getDiagnosis = (cents: number) => {
     const abs = Math.abs(cents);
-    if (abs < 2) return { label: 'In tune', color: 'text-green-400', icon: Check, bg: 'bg-green-500/10' };
-    if (abs < 5) return { label: 'Slightly off', color: 'text-yellow-400', icon: AlertTriangle, bg: 'bg-yellow-500/10' };
-    return { label: 'Needs adjustment', color: 'text-red-400', icon: XCircle, bg: 'bg-red-500/10' };
+    if (abs < 2) return { label: 'In tune', color: 'text-status-good', icon: Check, bg: 'bg-status-good/10' };
+    if (abs < 5) return { label: 'Slightly off', color: 'text-status-warn', icon: AlertTriangle, bg: 'bg-status-warn/10' };
+    return { label: 'Needs adjustment', color: 'text-status-bad', icon: XCircle, bg: 'bg-status-bad/10' };
   };
 
   const getSaddleAdvice = (cents: number) => {
@@ -211,7 +211,7 @@ export function IntonationChecker() {
               }`}
             >
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                reading != null ? 'bg-green-500/20 text-green-400' : isActive ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                reading != null ? 'bg-status-good/20 text-status-good' : isActive ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
               }`}>
                 {reading != null ? '✓' : step === 'open' ? '1' : step === 'harmonic' ? '2' : '3'}
               </div>
@@ -221,7 +221,7 @@ export function IntonationChecker() {
               </div>
               <div className="text-right min-w-[70px]">
                 {reading != null ? (
-                  <span className="text-green-400 font-mono">{reading.toFixed(1)} Hz</span>
+                  <span className="text-status-good font-mono">{reading.toFixed(1)} Hz</span>
                 ) : isActive && lockedFreq != null ? (
                   <span className="text-primary font-mono flex items-center gap-1">
                     <Lock className="w-3 h-3" /> {lockedFreq.toFixed(1)} Hz

@@ -4,6 +4,7 @@ import { Power, RotateCcw, Volume2, ChevronDown, ChevronUp, Minus, Plus, Search,
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { TabBar } from '@/components/ui/TabBar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useGuitarEffects, type EffectSettings, CABINET_TYPES, type CabinetType } from '@/hooks/useGuitarEffects';
 import { useDrumMachine, DRUM_PATTERNS } from '@/hooks/useDrumMachine';
@@ -389,23 +390,14 @@ export function EffectsSection() {
               </div>
             </div>
 
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              {EFFECT_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveEffectCategory(cat.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                    activeEffectCategory === cat.id
-                      ? "bg-primary/20 text-primary border border-primary/30"
-                      : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
-                  )}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
-            </div>
+            <TabBar
+              tabs={EFFECT_CATEGORIES.map((cat) => ({ id: cat.id, label: `${cat.icon} ${cat.label}` }))}
+              activeId={activeEffectCategory}
+              onChange={(id) => setActiveEffectCategory(id as EffectCategory)}
+              groupId="effect-categories"
+              variant="chip"
+              className="justify-center"
+            />
 
             {/* Effect Knobs */}
             <AnimatePresence mode="wait">
