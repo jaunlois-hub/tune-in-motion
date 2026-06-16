@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { getSharedAudioContextSync } from '@/lib/sharedAudioContext';
 import { Play, Square, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -294,9 +295,14 @@ export function JamSession() {
       {/* Count-in overlay */}
       {countIn > 0 && (
         <div className="flex justify-center">
-          <div className="text-6xl font-display font-black text-primary animate-pulse">
+          <motion.div
+            key={countIn}
+            animate={{ scale: [1, 1.12, 1] }}
+            transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
+            className="text-6xl font-display font-black text-primary"
+          >
             {countIn}
-          </div>
+          </motion.div>
         </div>
       )}
 

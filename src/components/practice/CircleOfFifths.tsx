@@ -252,7 +252,14 @@ export function CircleOfFifths() {
       {/* Count-in overlay */}
       {countIn > 0 && (
         <div className="flex justify-center">
-          <div className="text-5xl font-display font-black text-primary animate-pulse">{countIn}</div>
+          <motion.div
+            key={countIn}
+            className="text-5xl font-display font-black text-primary"
+            animate={{ scale: [1, 1.12, 1] }}
+            transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
+          >
+            {countIn}
+          </motion.div>
         </div>
       )}
 

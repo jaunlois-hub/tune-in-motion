@@ -448,16 +448,22 @@ export function IntervalTrainer() {
             const inPool = intervalPool.some((p) => p.semis === iv.semis);
             const wasCorrect = feedback === 'correct' && target?.interval.semis === iv.semis;
             const wasRevealed = feedback === 'wrong' && target?.interval.semis === iv.semis;
+            // Discrete one-shot pop when this choice is revealed as the answer
+            // (correct guess or the reveal after a wrong guess). Keyed to the
+            // question id so the pop re-fires for each new question.
+            const isPop = wasCorrect || wasRevealed;
             return (
-              <button
+              <motion.button
                 key={iv.semis}
                 onClick={() => guess(iv.semis)}
                 disabled={!!feedback || !inPool}
+                animate={isPop ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                transition={isPop ? { duration: 0.35, ease: [0.2, 0, 0, 1] } : { duration: 0 }}
                 className={`px-2 py-2 rounded-md text-xs font-display transition-all ${
                   wasCorrect
                     ? 'bg-status-good text-white shadow-lg'
                     : wasRevealed
-                      ? 'bg-status-good/40 text-white animate-pulse'
+                      ? 'bg-status-good/40 text-white'
                       : inPool
                         ? 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
                         : 'bg-secondary/20 text-muted-foreground/40 border border-border/30'
@@ -465,7 +471,7 @@ export function IntervalTrainer() {
               >
                 <div className="font-bold">{iv.short}</div>
                 <div className="text-[9px] opacity-75">{iv.name}</div>
-              </button>
+              </motion.button>
             );
           })}
         </AnimatePresence>

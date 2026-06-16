@@ -169,27 +169,27 @@ export function GuitarTuner() {
         {lockedString && (
           <button
             onClick={() => setLockedString(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono bg-amber-400/15 border border-amber-400/40 text-amber-300 hover:bg-amber-400/25 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono bg-amber-400/15 border border-amber-400/40 text-amber-300 hover:bg-amber-400/25 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background"
           >
             <Unlock className="w-3 h-3" />
             Unlock {lockedString.note}{lockedString.octave} ({lockedString.frequency.toFixed(2)} Hz)
           </button>
         )}
 
-        {/* Frequency comparison */}
-        <FrequencyDisplay
-          currentFrequency={pitchData?.frequency || null}
-          targetNote={targetNote}
-          isActive={isActive}
-        />
-
-        {/* Intonation targets — capture-and-compare workflow when locked */}
-        <IntonationTargets
-          targetNote={targetNote}
-          currentFrequency={pitchData?.frequency || null}
-          isActive={isActive}
-          lockedString={lockedString}
-        />
+        {/* Readout — live frequency comparison + intonation capture, grouped as one panel */}
+        <div className="w-full max-w-md mx-auto rounded-xl border border-border/50 bg-card/20 p-3 space-y-3">
+          <FrequencyDisplay
+            currentFrequency={pitchData?.frequency || null}
+            targetNote={targetNote}
+            isActive={isActive}
+          />
+          <IntonationTargets
+            targetNote={targetNote}
+            currentFrequency={pitchData?.frequency || null}
+            isActive={isActive}
+            lockedString={lockedString}
+          />
+        </div>
 
         {/* Tuner display */}
         <div className="relative">

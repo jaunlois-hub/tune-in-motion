@@ -299,11 +299,14 @@ function QuizPanel({
               const isPick = feedback?.chord === opt;
               const isAnswer = target === opt;
               const reveal = !!feedback;
+              const popCorrect = reveal && isAnswer;
               return (
-                <button
+                <motion.button
                   key={opt}
                   onClick={() => guess(opt)}
                   disabled={!!feedback}
+                  animate={popCorrect ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                  transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
                   className={`px-3 py-3 rounded-lg text-sm font-display font-bold transition-all ${
                     reveal
                       ? isAnswer
@@ -315,7 +318,7 @@ function QuizPanel({
                   } disabled:opacity-80`}
                 >
                   {opt}
-                </button>
+                </motion.button>
               );
             })}
           </div>

@@ -363,22 +363,27 @@ function FretboardTrainer() {
 
       {/* Note buttons */}
       <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-        {NOTE_NAMES.map((n) => (
-          <button
-            key={n}
-            onClick={() => guess(n)}
-            disabled={!!feedback}
-            className={`px-2 py-2 rounded-md text-xs font-display font-bold transition-all ${
-              feedback === 'correct' && target?.note === n
-                ? 'bg-status-good text-white shadow-lg'
-                : feedback === 'wrong' && target?.note === n
-                  ? 'bg-status-good/40 text-white animate-pulse'
-                  : 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
-            } disabled:opacity-60`}
-          >
-            {n}
-          </button>
-        ))}
+        {NOTE_NAMES.map((n) => {
+          const isCorrect = feedback === 'correct' && target?.note === n;
+          return (
+            <motion.button
+              key={n}
+              onClick={() => guess(n)}
+              disabled={!!feedback}
+              animate={isCorrect ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+              transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
+              className={`px-2 py-2 rounded-md text-xs font-display font-bold transition-all ${
+                isCorrect
+                  ? 'bg-status-good text-white shadow-lg'
+                  : feedback === 'wrong' && target?.note === n
+                    ? 'bg-status-good/40 text-white animate-pulse'
+                    : 'bg-secondary/50 hover:bg-primary/30 text-foreground border border-border/50 hover:border-primary/40'
+              } disabled:opacity-60`}
+            >
+              {n}
+            </motion.button>
+          );
+        })}
       </div>
     </div>
   );
@@ -709,10 +714,12 @@ function IntervalEarTraining() {
           const wasCorrect = feedback === 'correct' && target?.semis === iv.semis;
           const wasRevealed = feedback === 'wrong' && target?.semis === iv.semis;
           return (
-            <button
+            <motion.button
               key={iv.semis}
               onClick={() => guess(iv.semis)}
               disabled={!!feedback}
+              animate={wasCorrect ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+              transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
               className={`px-2 py-2 rounded-md text-xs font-display transition-all ${
                 wasCorrect ? 'bg-status-good text-white shadow-lg' :
                 wasRevealed ? 'bg-status-good/40 text-white animate-pulse' :
@@ -721,7 +728,7 @@ function IntervalEarTraining() {
             >
               <div className="font-bold">{iv.short}</div>
               <div className="text-[9px] opacity-75">{iv.name}</div>
-            </button>
+            </motion.button>
           );
         })}
       </div>
