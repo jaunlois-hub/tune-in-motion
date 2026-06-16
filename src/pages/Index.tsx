@@ -50,12 +50,12 @@ const Index = () => {
         Skip to content
       </a>
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-primary/20 shadow-header">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <Zap className="w-7 h-7 text-primary drop-shadow-[0_0_8px_rgba(230,50,80,0.6)] shrink-0" />
-              <h1 className="font-display text-lg font-bold tracking-wider truncate">
+              <Zap className="w-8 h-8 text-primary drop-shadow-[0_0_12px_rgba(230,50,80,0.9)] shrink-0" />
+              <h1 className="font-display text-lg font-bold tracking-wider truncate text-foreground dark:text-primary dark:text-glow">
                 BLEED OUT ZONE
               </h1>
             </div>

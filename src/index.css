@@ -45,13 +45,21 @@
 
     /* Gradients */
     --gradient-radial: radial-gradient(circle at center, hsl(var(--primary) / 0.2), transparent 70%);
-    --gradient-strobe: linear-gradient(90deg, 
-      transparent 0%, 
-      hsl(var(--tuner-strobe)) 10%, 
-      hsl(var(--tuner-strobe)) 40%, 
+    --gradient-strobe: linear-gradient(90deg,
+      transparent 0%,
+      hsl(var(--tuner-strobe)) 10%,
+      hsl(var(--tuner-strobe)) 40%,
       transparent 50%,
       transparent 100%
     );
+
+    /* Glow elevation ladder — references --primary so it adapts per theme */
+    --glow-1: 0 0 6px hsl(var(--primary) / 0.45);
+    --glow-2: 0 0 10px hsl(var(--primary) / 0.25), 0 0 5px hsl(var(--primary) / 0.45);
+    --glow-3: 0 0 30px hsl(var(--primary) / 0.4), 0 0 12px hsl(var(--primary) / 0.6),
+      inset 0 0 12px hsl(var(--primary) / 0.08);
+    --glow-4: 0 0 50px hsl(var(--primary) / 0.5), 0 0 20px hsl(var(--primary) / 0.7),
+      inset 0 0 20px hsl(var(--primary) / 0.12);
   }
 
   .dark {
@@ -124,6 +132,12 @@
     text-shadow: 0 0 10px hsl(var(--primary) / 0.8),
                  0 0 20px hsl(var(--primary) / 0.6),
                  0 0 40px hsl(var(--primary) / 0.4);
+  }
+
+  .text-glow-accent {
+    text-shadow: 0 0 10px hsl(var(--accent) / 0.8),
+                 0 0 20px hsl(var(--accent) / 0.6),
+                 0 0 40px hsl(var(--accent) / 0.4);
   }
 
   .text-glow-flat {

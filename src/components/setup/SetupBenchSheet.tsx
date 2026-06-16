@@ -215,7 +215,7 @@ function BenchGrid({ specs, factory }: { specs: SetupSpecs; factory: SetupSpecs 
       </div>
 
       <div className="space-y-1">
-        <h5 className="text-[10px] uppercase tracking-wider text-cyan-400 font-display font-bold">Pickup heights</h5>
+        <h5 className="text-[10px] uppercase tracking-wider text-primary font-display font-bold">Pickup heights</h5>
         <Row label="Neck — treble" value={specs.pickupNeckTrebleMm} factory={factory.pickupNeckTrebleMm} digits={1} />
         <Row label="Neck — bass" value={specs.pickupNeckBassMm} factory={factory.pickupNeckBassMm} digits={1} />
         {specs.pickupConfig === 'SSS' && (

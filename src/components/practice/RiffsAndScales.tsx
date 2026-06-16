@@ -331,7 +331,7 @@ export function RiffsAndScales() {
                   whileTap={{ scale: 0.97 }}
                   className={`relative text-left px-3 py-2.5 rounded-lg text-xs overflow-hidden transition-all ${
                     selected
-                      ? 'bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-[0_4px_18px_rgba(45,212,191,0.35)] border border-primary'
+                      ? 'bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-glow-3 border border-primary'
                       : 'bg-secondary/40 text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 hover:bg-secondary/70'
                   }`}
                 >

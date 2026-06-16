@@ -199,7 +199,7 @@ export function SpeedTrainer() {
                 whileTap={{ scale: 0.97 }}
                 className={`relative text-left px-3 py-2.5 rounded-lg text-xs overflow-hidden transition-all ${
                   selected
-                    ? 'bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-[0_4px_18px_rgba(45,212,191,0.35)] border border-primary'
+                    ? 'bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-glow-3 border border-primary'
                     : 'bg-secondary/40 text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 hover:bg-secondary/70'
                 }`}
               >
@@ -272,7 +272,7 @@ export function SpeedTrainer() {
         {/* Custom animated progress bar — gradient with shimmer */}
         <div className="relative h-3 bg-secondary/40 rounded-full overflow-hidden border border-border/40">
           <motion.div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-cyan-400 to-accent rounded-full shadow-[0_0_12px_hsl(var(--primary))]"
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-accent/60 to-accent rounded-full shadow-[0_0_12px_hsl(var(--primary))]"
             initial={{ width: '0%' }}
             animate={{ width: `${progress}%` }}
             transition={{ type: 'spring', stiffness: 80, damping: 20 }}
@@ -302,7 +302,7 @@ export function SpeedTrainer() {
               transition={{ type: 'spring', stiffness: 200, damping: 14 }}
               className="text-center py-2"
             >
-              <span className="text-xl font-display font-black bg-gradient-to-r from-primary via-amber-400 to-accent bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(45,212,191,0.6)]">
+              <span className="text-xl font-display font-black bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent">
                 🎉 TARGET REACHED!
               </span>
             </motion.div>

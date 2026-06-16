@@ -358,7 +358,7 @@ export function EffectsSection() {
                              bg-gradient-to-br from-accent/30 to-accent/10
                              text-accent-foreground hover:from-primary/20 hover:to-accent/30
                              border border-accent/40 hover:border-primary/60
-                             shadow-sm hover:shadow-[0_4px_14px_rgba(45,212,191,0.18)]
+                             shadow-sm hover:shadow-glow-2
                              transition-all duration-200"
                 >
                   <span className="text-base leading-none">{qp.emoji}</span>

@@ -66,6 +66,26 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontSize: {
+        // micro (9px) is ornamental/SVG only — never for readable text (WCAG 1.4.4)
+        micro: ["0.5625rem", { lineHeight: "1rem", letterSpacing: "0.08em" }],
+        nano: ["0.625rem", { lineHeight: "1.1rem", letterSpacing: "0.06em" }], // 10px label floor
+        caption: ["0.6875rem", { lineHeight: "1.2rem", letterSpacing: "0.04em" }], // 11px
+      },
+      boxShadow: {
+        "glow-1": "var(--glow-1)",
+        "glow-2": "var(--glow-2)",
+        "glow-3": "var(--glow-3)",
+        "glow-4": "var(--glow-4)",
+        hero: "0 0 0 1px hsl(var(--primary)/0.3), 0 0 60px -4px hsl(var(--primary)/0.5), 0 0 120px -20px hsl(var(--primary)/0.25), 0 24px 64px -16px hsl(0 0% 0% / 0.8)",
+        header: "0 1px 0 0 hsl(var(--primary)/0.15), 0 4px 24px 0 hsl(240 15% 3% / 0.8)",
+        "tab-active": "0 0 10px hsl(var(--primary)/0.5), 0 0 20px hsl(var(--primary)/0.2)",
+      },
+      transitionTimingFunction: {
+        "brand-snap": "cubic-bezier(0.2, 0, 0, 1)",
+        "brand-settle": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "brand-glow": "cubic-bezier(0, 0, 0.2, 1)",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
