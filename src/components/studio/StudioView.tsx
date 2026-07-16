@@ -283,11 +283,13 @@ export function StudioView() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings, setImpulseResponse } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
   const { presets: customPresets, savePreset, deletePreset, exportAll, exportPreset, importPresets } = useCustomPresets();
+  const { irs, activeIrId, setActiveIrId, loadFile: loadIrFile, removeIr } = useImpulseResponses();
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const tonalityInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
