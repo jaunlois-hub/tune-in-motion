@@ -614,6 +614,33 @@ export function StudioView() {
                     ))}
                   </div>
 
+                  {/* Tonality Loader (IR + Preset JSON unified) */}
+                  <div className="p-3 rounded-xl bg-secondary/30 border border-border space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium">🎛️ Load Tonality</p>
+                      <input
+                        ref={tonalityInputRef}
+                        type="file"
+                        accept=".wav,.json,audio/wav,application/json"
+                        className="hidden"
+                        onChange={handleTonalityFile}
+                      />
+                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => tonalityInputRef.current?.click()}>
+                        <Upload className="w-3 h-3 mr-1" /> Load .wav / .json
+                      </Button>
+                    </div>
+                    <IRLoader
+                      irs={irs}
+                      activeIrId={activeIrId}
+                      irWet={settings.irWet}
+                      onLoadFile={loadIrFile}
+                      onRemove={removeIr}
+                      onActivate={(ir) => setActiveIrId(ir ? ir.id : null)}
+                      onWetChange={(v) => updateSetting('irWet', v)}
+                    />
+                  </div>
+
+
                   {/* Effect Category Tabs */}
                   <div className="flex gap-1 overflow-x-auto pb-1">
                     {EFFECT_CATEGORIES.map((cat) => (
