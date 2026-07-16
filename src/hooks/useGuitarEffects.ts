@@ -617,8 +617,17 @@ export function useGuitarEffects() {
         cabOut = n.cabLow;
       }
 
+      // → user IR convolver (tonality slot) — wet/dry mix around cabOut
+      cabOut.connect(n.userConvolver as ConvolverNode);
+      (n.userConvolver as ConvolverNode).connect(n.userConvolverWet as GainNode);
+      cabOut.connect(n.userConvolverDry as GainNode);
+      const userIrMerge = ctx.createGain();
+      n.userIrMerge = userIrMerge;
+      (n.userConvolverWet as GainNode).connect(userIrMerge);
+      (n.userConvolverDry as GainNode).connect(userIrMerge);
+
       // → post-cab tone stack
-      cabOut.connect(n.postEqBass);
+      userIrMerge.connect(n.postEqBass);
       (n.postEqBass as BiquadFilterNode).connect(n.postEqMid);
       (n.postEqMid as BiquadFilterNode).connect(n.postEqTreble);
       const postCab: AudioNode = n.postEqTreble;
