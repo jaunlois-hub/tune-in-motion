@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity, Upload, Share2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
