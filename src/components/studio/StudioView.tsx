@@ -310,6 +310,34 @@ export function StudioView() {
     }
   };
 
+  // Sync IR selection into the audio graph
+  const activeIr = irs.find(i => i.id === activeIrId) ?? null;
+  useEffect(() => {
+    setImpulseResponse(activeIr ? activeIr.buffer : null);
+  }, [activeIr, setImpulseResponse]);
+
+  const handleTonalityFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const isWav = /\.wav$/i.test(file.name) || file.type.includes('wav');
+    const isJson = /\.json$/i.test(file.name) || file.type.includes('json');
+    try {
+      if (isWav) {
+        const ir = await loadIrFile(file);
+        setActiveIrId(ir.id);
+        toast({ title: 'IR loaded', description: `${ir.name} • ${ir.duration.toFixed(2)}s` });
+      } else if (isJson) {
+        const result = await importPresets(file, 'merge');
+        toast({ title: 'Presets imported', description: `Added ${result.added} of ${result.total}` });
+      } else {
+        toast({ title: 'Unsupported file', description: 'Use .wav for IRs or .json for presets', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Load failed', description: err instanceof Error ? err.message : 'Invalid file', variant: 'destructive' });
+    }
+  };
+
   const handleExportAll = () => {
     if (customPresets.length === 0) {
       toast({ title: 'Nothing to export', description: 'Save a preset first to export it.' });
