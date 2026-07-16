@@ -13,6 +13,8 @@ import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
 import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
+import { useImpulseResponses } from '@/hooks/useImpulseResponses';
+import { IRLoader } from '@/components/studio/IRLoader';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
 import { SmartDrummer } from '@/components/SmartDrummer';
