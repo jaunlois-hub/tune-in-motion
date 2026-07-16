@@ -737,14 +737,14 @@ export function useGuitarEffects() {
       // → stutter (square-wave gate on gain, inline)
       glitchMerge.connect(n.stutterGain as GainNode);
 
-      // → delay (with filtered feedback)
-      autoWahMerge.connect(n.delay as DelayNode);
+      // → delay (with filtered feedback), fed from stutter output
+      (n.stutterGain as GainNode).connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
       (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
-      autoWahMerge.connect(n.dryGain as GainNode);
+      (n.stutterGain as GainNode).connect(n.dryGain as GainNode);
 
       // → reverb → limiter → output
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
