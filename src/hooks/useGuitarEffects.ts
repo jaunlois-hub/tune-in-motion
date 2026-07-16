@@ -549,6 +549,47 @@ export function useGuitarEffects() {
       limiter.attack.value = 0.001;
       limiter.release.value = 0.05;
 
+      // === STUTTER (square-wave gate) ===
+      // LFO with square wave modulates gain between (1-wet) and 1 → tremolo/gate effect
+      n.stutterGain = ctx.createGain();
+      (n.stutterGain as GainNode).gain.value = 1;
+      n.stutterLfo = ctx.createOscillator();
+      (n.stutterLfo as OscillatorNode).type = 'square';
+      (n.stutterLfo as OscillatorNode).frequency.value = settings.stutterRate;
+      n.stutterLfoGain = ctx.createGain();
+      (n.stutterLfoGain as GainNode).gain.value = settings.stutter * 0.5;
+      (n.stutterLfo as OscillatorNode).connect(n.stutterLfoGain as GainNode);
+      (n.stutterLfoGain as GainNode).connect((n.stutterGain as GainNode).gain);
+      (n.stutterLfo as OscillatorNode).start();
+
+      // === GLITCH (short slice with high feedback) ===
+      n.glitchDelay = ctx.createDelay(0.5);
+      (n.glitchDelay as DelayNode).delayTime.value = settings.glitchTime;
+      n.glitchFeedback = ctx.createGain();
+      (n.glitchFeedback as GainNode).gain.value = settings.glitch * 0.75;
+      n.glitchWet = ctx.createGain();
+      (n.glitchWet as GainNode).gain.value = settings.glitch;
+      n.glitchDry = ctx.createGain();
+      (n.glitchDry as GainNode).gain.value = 1;
+
+      // === WARBLE (sample-and-hold delayTime modulation) ===
+      // Tiny delay whose delayTime jumps to random values → tape-drop/granular character
+      n.warbleDelay = ctx.createDelay(0.04);
+      (n.warbleDelay as DelayNode).delayTime.value = 0.005;
+      n.warbleWet = ctx.createGain();
+      (n.warbleWet as GainNode).gain.value = settings.warble;
+      n.warbleDry = ctx.createGain();
+      (n.warbleDry as GainNode).gain.value = 1;
+
+      // === USER IR CONVOLVER (tonality slot) ===
+      // Always in graph; buffer is null until user loads an IR. Wet=0 when no buffer.
+      n.userConvolver = ctx.createConvolver();
+      (n.userConvolver as ConvolverNode).normalize = true;
+      n.userConvolverWet = ctx.createGain();
+      (n.userConvolverWet as GainNode).gain.value = 0; // starts silent (no IR loaded)
+      n.userConvolverDry = ctx.createGain();
+      (n.userConvolverDry as GainNode).gain.value = 1;
+
       // === SIGNAL CHAIN ===
       // source → noiseGateAnalyser (tap) → noiseGateGain → compressor → preDistFilter → EQ
       source.connect(n.noiseGateAnalyser);
