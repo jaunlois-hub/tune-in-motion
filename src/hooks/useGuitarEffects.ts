@@ -859,7 +859,8 @@ export function useGuitarEffects() {
   const stop = useCallback(() => {
     if (noiseGateRafRef.current) cancelAnimationFrame(noiseGateRafRef.current);
     if (autoWahRafRef.current) cancelAnimationFrame(autoWahRafRef.current);
-    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc'].forEach(k => {
+    if (warbleRafRef.current) cancelAnimationFrame(warbleRafRef.current);
+    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc', 'stutterLfo'].forEach(k => {
       try { (nodesRef.current[k] as OscillatorNode)?.stop(); } catch { /* already stopped */ }
     });
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
