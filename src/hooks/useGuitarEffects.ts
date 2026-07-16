@@ -714,6 +714,29 @@ export function useGuitarEffects() {
       (n.autoWahWet as GainNode).connect(autoWahMerge);
       (n.autoWahDry as GainNode).connect(autoWahMerge);
 
+      // → warble (parallel wet delay w/ S&H modulated delayTime)
+      autoWahMerge.connect(n.warbleDelay as DelayNode);
+      (n.warbleDelay as DelayNode).connect(n.warbleWet as GainNode);
+      autoWahMerge.connect(n.warbleDry as GainNode);
+      const warbleMerge = ctx.createGain();
+      n.warbleMerge = warbleMerge;
+      (n.warbleWet as GainNode).connect(warbleMerge);
+      (n.warbleDry as GainNode).connect(warbleMerge);
+
+      // → glitch (short high-feedback slice) — parallel wet delay
+      warbleMerge.connect(n.glitchDelay as DelayNode);
+      (n.glitchDelay as DelayNode).connect(n.glitchFeedback as GainNode);
+      (n.glitchFeedback as GainNode).connect(n.glitchDelay as DelayNode);
+      (n.glitchDelay as DelayNode).connect(n.glitchWet as GainNode);
+      warbleMerge.connect(n.glitchDry as GainNode);
+      const glitchMerge = ctx.createGain();
+      n.glitchMerge = glitchMerge;
+      (n.glitchWet as GainNode).connect(glitchMerge);
+      (n.glitchDry as GainNode).connect(glitchMerge);
+
+      // → stutter (square-wave gate on gain, inline)
+      glitchMerge.connect(n.stutterGain as GainNode);
+
       // → delay (with filtered feedback)
       autoWahMerge.connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
