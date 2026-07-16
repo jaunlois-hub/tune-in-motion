@@ -940,6 +940,21 @@ export function useGuitarEffects() {
     // Auto-wah (depth is mix; freq sweep handled by rAF using autoWahSens ref)
     if (n.autoWahWet) (n.autoWahWet as GainNode).gain.value = settings.autoWah;
     if (n.autoWahDry) (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
+    // Stutter (square-wave gate)
+    if (n.stutterLfoGain) (n.stutterLfoGain as GainNode).gain.value = settings.stutter * 0.5;
+    if (n.stutterGain) (n.stutterGain as GainNode).gain.value = 1 - settings.stutter * 0.5;
+    if (n.stutterLfo) (n.stutterLfo as OscillatorNode).frequency.value = settings.stutterRate;
+    // Glitch (short slice)
+    if (n.glitchDelay) (n.glitchDelay as DelayNode).delayTime.value = settings.glitchTime;
+    if (n.glitchFeedback) (n.glitchFeedback as GainNode).gain.value = settings.glitch * 0.75;
+    if (n.glitchWet) (n.glitchWet as GainNode).gain.value = settings.glitch;
+    // Warble (rate handled by rAF via settingsRef; wet mix here)
+    if (n.warbleWet) (n.warbleWet as GainNode).gain.value = settings.warble;
+    if (n.warbleDry) (n.warbleDry as GainNode).gain.value = 1 - settings.warble * 0.5;
+    // User IR wet mix (only audible when a buffer is loaded)
+    if (n.userConvolverWet) {
+      (n.userConvolverWet as GainNode).gain.value = userIrBufferRef.current ? settings.irWet : 0;
+    }
     // Cabinet type — IR path: swap convolver buffer; biquad path: retune filters.
     if (n.cabConvolver) {
       const buf = cabBuffersRef.current[cabinetType];
@@ -960,6 +975,19 @@ export function useGuitarEffects() {
       (n.cabLow as BiquadFilterNode).Q.value = cab.lpQ;
     }
   }, [settings, isActive, cabinetType]);
+
+  /**
+   * Load a user-supplied impulse response into the tonality convolver slot.
+   * Pass null to unload (silences the convolver wet path).
+   * Buffer stays in the ref so it survives start/stop cycles.
+   */
+  const setImpulseResponse = useCallback((buffer: AudioBuffer | null) => {
+    userIrBufferRef.current = buffer;
+    const conv = nodesRef.current.userConvolver as ConvolverNode | undefined;
+    const wet = nodesRef.current.userConvolverWet as GainNode | undefined;
+    if (conv) conv.buffer = buffer;
+    if (wet) wet.gain.value = buffer ? settingsRef.current.irWet : 0;
+  }, []);
 
   const updateSetting = useCallback((key: keyof EffectSettings, value: number) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
