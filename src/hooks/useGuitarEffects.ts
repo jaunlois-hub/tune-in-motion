@@ -997,5 +997,5 @@ export function useGuitarEffects() {
 
   useEffect(() => { return () => { stop(); }; }, [stop]);
 
-  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType };
+  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType, setImpulseResponse, hasImpulseResponse: !!userIrBufferRef.current };
 }
