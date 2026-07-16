@@ -50,7 +50,7 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird' | 'glitch';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
@@ -60,6 +60,7 @@ const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] =
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
   { id: 'weird', label: 'Weird', icon: '👽' },
+  { id: 'glitch', label: 'Glitch', icon: '🌀' },
 ];
 
 const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
@@ -104,6 +105,14 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'bitcrushBits', label: 'Bits', min: 2, max: 16, step: 1 },
     { key: 'autoWah', label: 'Auto-Wah' },
     { key: 'autoWahSens', label: 'AW Sens' },
+  ],
+  glitch: [
+    { key: 'stutter', label: 'Stutter' },
+    { key: 'stutterRate', label: 'Stut Rate', min: 2, max: 32, unit: 'Hz', step: 0.5 },
+    { key: 'glitch', label: 'Glitch' },
+    { key: 'glitchTime', label: 'Slice', min: 0.03, max: 0.3, unit: 's', step: 0.005 },
+    { key: 'warble', label: 'Warble' },
+    { key: 'warbleRate', label: 'Wb Rate', min: 2, max: 30, unit: 'Hz', step: 0.5 },
   ],
 };
 
