@@ -127,6 +127,8 @@ const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSett
   { name: 'Glitch', emoji: '👾', settings: { distortion: 0.15, gain: 0.65, reverb: 0.2, delay: 0.35, delayTime: 0.18, bitcrush: 0.85, bitcrushBits: 4, ringMod: 0.15, ringModFreq: 90, compressor: 0.35 } },
   { name: 'Funk', emoji: '🕺', settings: { distortion: 0.1, gain: 0.75, reverb: 0.15, delay: 0, autoWah: 0.8, autoWahSens: 0.7, compressor: 0.5, eqBass: 0.45, eqMid: 0.65, eqTreble: 0.55 } },
   { name: 'Space', emoji: '🛸', settings: { distortion: 0.2, gain: 0.6, reverb: 0.75, delay: 0.55, delayTime: 0.5, chorus: 0.3, phaser: 0.35, phaserRate: 0.4, ringMod: 0.12, ringModFreq: 880, autoWah: 0.2, autoWahSens: 0.4 } },
+  { name: 'Stutter Storm', emoji: '🌀', settings: { distortion: 0.35, gain: 0.75, reverb: 0.25, delay: 0.2, delayTime: 0.18, stutter: 0.85, stutterRate: 12, compressor: 0.35, eqMid: 0.6 } },
+  { name: 'Broken Tape', emoji: '📼', settings: { distortion: 0.25, gain: 0.7, reverb: 0.3, delay: 0.25, delayTime: 0.22, warble: 0.7, warbleRate: 14, glitch: 0.35, glitchTime: 0.09, bitcrush: 0.2, bitcrushBits: 7 } },
 ];
 
 function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
