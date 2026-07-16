@@ -822,6 +822,31 @@ export function useGuitarEffects() {
       };
       autoWahRafRef.current = requestAnimationFrame(pollWah);
 
+      // === WARBLE: sample-and-hold LFO on warbleDelay.delayTime ===
+      // Jumps to a random delay time at warbleRate Hz — creates chopped/grain wobble
+      let nextWarbleAt = 0;
+      const pollWarble = () => {
+        if (!audioContextRef.current) return;
+        const wd = nodesRef.current.warbleDelay as DelayNode | undefined;
+        if (!wd) return;
+        const now = audioContextRef.current.currentTime;
+        if (now >= nextWarbleAt) {
+          const rate = Math.max(0.5, settingsRef.current.warbleRate);
+          nextWarbleAt = now + 1 / rate;
+          // Random delay 0..30ms — audible pitch/grain jumps
+          const t = Math.random() * 0.03;
+          wd.delayTime.setTargetAtTime(t, now, 0.001);
+        }
+        warbleRafRef.current = requestAnimationFrame(pollWarble);
+      };
+      warbleRafRef.current = requestAnimationFrame(pollWarble);
+
+      // Re-apply user IR buffer if one was loaded before the effects were started
+      if (userIrBufferRef.current && n.userConvolver) {
+        (n.userConvolver as ConvolverNode).buffer = userIrBufferRef.current;
+        (n.userConvolverWet as GainNode).gain.value = settings.irWet;
+      }
+
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
