@@ -35,6 +35,15 @@ export interface EffectSettings {
   bitcrushBits: number;   // 2..16 bit depth
   autoWah: number;        // 0..1 wet mix
   autoWahSens: number;    // 0..1 envelope sensitivity
+  // ---- "glitch" effects ----
+  stutter: number;        // 0..1 wet mix (square-wave gate)
+  stutterRate: number;    // 2..32 Hz gate rate
+  glitch: number;         // 0..1 wet mix (short high-feedback slice)
+  glitchTime: number;     // 0.03..0.3 s slice length
+  warble: number;         // 0..1 wet mix (sample-and-hold delayTime modulation)
+  warbleRate: number;     // 2..30 Hz random-step rate
+  // ---- IR (impulse response) tonality slot ----
+  irWet: number;          // 0..1 wet mix for user-loaded convolver
 }
 
 const defaultSettings: EffectSettings = {
@@ -51,6 +60,10 @@ const defaultSettings: EffectSettings = {
   ringMod: 0, ringModFreq: 220,
   bitcrush: 0, bitcrushBits: 8,
   autoWah: 0, autoWahSens: 0.5,
+  stutter: 0, stutterRate: 8,
+  glitch: 0, glitchTime: 0.12,
+  warble: 0, warbleRate: 10,
+  irWet: 0.6,
 };
 
 /**
