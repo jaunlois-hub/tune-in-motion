@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Power, RotateCcw, Mic, Mic2, Square, Play, Pause, Trash2, Repeat, Volume2, ChevronDown, ChevronUp, Minus, Plus, Scissors, Download, Search, Music, Disc3, Youtube, Save, Star, X, Activity, Upload, Share2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -13,6 +13,8 @@ import { useMasterVolume } from '@/hooks/useMasterVolume';
 import { useBpmSync } from '@/hooks/useBpmSync';
 import { TONE_PRESETS, type TonePreset } from '@/lib/tonePresets';
 import { useCustomPresets, type CustomPreset } from '@/hooks/useCustomPresets';
+import { useImpulseResponses } from '@/hooks/useImpulseResponses';
+import { IRLoader } from '@/components/studio/IRLoader';
 import { YouTubeToneMatcher } from '@/components/studio/YouTubeToneMatcher';
 import { VocalRecorderView } from '@/components/studio/VocalRecorderView';
 import { SmartDrummer } from '@/components/SmartDrummer';
@@ -50,7 +52,7 @@ function formatDuration(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}.${ms}`;
 }
 
-type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird';
+type EffectCategory = 'core' | 'dynamics' | 'eq' | 'modulation' | 'time' | 'pitch' | 'weird' | 'glitch';
 
 const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] = [
   { id: 'core', label: 'Core', icon: '🎸' },
@@ -60,6 +62,7 @@ const EFFECT_CATEGORIES: { id: EffectCategory; label: string; icon: string }[] =
   { id: 'time', label: 'Time', icon: '⏱️' },
   { id: 'pitch', label: 'Pitch', icon: '🎵' },
   { id: 'weird', label: 'Weird', icon: '👽' },
+  { id: 'glitch', label: 'Glitch', icon: '🌀' },
 ];
 
 const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; label: string; min?: number; max?: number; unit?: string; step?: number }[]> = {
@@ -105,6 +108,14 @@ const EFFECTS_BY_CATEGORY: Record<EffectCategory, { key: keyof EffectSettings; l
     { key: 'autoWah', label: 'Auto-Wah' },
     { key: 'autoWahSens', label: 'AW Sens' },
   ],
+  glitch: [
+    { key: 'stutter', label: 'Stutter' },
+    { key: 'stutterRate', label: 'Stut Rate', min: 2, max: 32, unit: 'Hz', step: 0.5 },
+    { key: 'glitch', label: 'Glitch' },
+    { key: 'glitchTime', label: 'Slice', min: 0.03, max: 0.3, unit: 's', step: 0.005 },
+    { key: 'warble', label: 'Warble' },
+    { key: 'warbleRate', label: 'Wb Rate', min: 2, max: 30, unit: 'Hz', step: 0.5 },
+  ],
 };
 
 const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSettings> }[] = [
@@ -118,6 +129,8 @@ const QUICK_PRESETS: { name: string; emoji: string; settings: Partial<EffectSett
   { name: 'Glitch', emoji: '👾', settings: { distortion: 0.15, gain: 0.65, reverb: 0.2, delay: 0.35, delayTime: 0.18, bitcrush: 0.85, bitcrushBits: 4, ringMod: 0.15, ringModFreq: 90, compressor: 0.35 } },
   { name: 'Funk', emoji: '🕺', settings: { distortion: 0.1, gain: 0.75, reverb: 0.15, delay: 0, autoWah: 0.8, autoWahSens: 0.7, compressor: 0.5, eqBass: 0.45, eqMid: 0.65, eqTreble: 0.55 } },
   { name: 'Space', emoji: '🛸', settings: { distortion: 0.2, gain: 0.6, reverb: 0.75, delay: 0.55, delayTime: 0.5, chorus: 0.3, phaser: 0.35, phaserRate: 0.4, ringMod: 0.12, ringModFreq: 880, autoWah: 0.2, autoWahSens: 0.4 } },
+  { name: 'Stutter Storm', emoji: '🌀', settings: { distortion: 0.35, gain: 0.75, reverb: 0.25, delay: 0.2, delayTime: 0.18, stutter: 0.85, stutterRate: 12, compressor: 0.35, eqMid: 0.6 } },
+  { name: 'Broken Tape', emoji: '📼', settings: { distortion: 0.25, gain: 0.7, reverb: 0.3, delay: 0.25, delayTime: 0.22, warble: 0.7, warbleRate: 14, glitch: 0.35, glitchTime: 0.09, bitcrush: 0.2, bitcrushBits: 7 } },
 ];
 
 function TonePresetCard({ preset, onApply }: { preset: TonePreset; onApply: () => void }) {
@@ -270,11 +283,13 @@ export function StudioView() {
   const [saveInitialSong, setSaveInitialSong] = useState('');
   const { masterVolume, setMasterVolume } = useMasterVolume();
   const { bpm, setBpm } = useBpmSync();
-  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings } = useGuitarEffects();
+  const { isActive: effectsActive, settings, error: effectsError, start: startEffects, stop: stopEffects, updateSetting, resetSettings, setImpulseResponse } = useGuitarEffects();
   const { isPlaying: drumsPlaying, currentPattern, currentStep, volume: drumsVolume, swing, setCurrentPattern, setVolume: setDrumsVolume, setSwing, start: startDrums, stop: stopDrums } = useDrumMachine();
   const { isRecording, loops, playingLoopId, recordingDuration, startRecording, stopRecording, playLoop, stopLoop, deleteLoop, updateLoopTrim, exportLoop } = useLoopRecorder();
   const { presets: customPresets, savePreset, deletePreset, exportAll, exportPreset, importPresets } = useCustomPresets();
+  const { irs, activeIrId, setActiveIrId, loadFile: loadIrFile, removeIr } = useImpulseResponses();
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const tonalityInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -292,6 +307,34 @@ export function StudioView() {
         description: err instanceof Error ? err.message : 'Invalid preset file',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Sync IR selection into the audio graph
+  const activeIr = irs.find(i => i.id === activeIrId) ?? null;
+  useEffect(() => {
+    setImpulseResponse(activeIr ? activeIr.buffer : null);
+  }, [activeIr, setImpulseResponse]);
+
+  const handleTonalityFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const isWav = /\.wav$/i.test(file.name) || file.type.includes('wav');
+    const isJson = /\.json$/i.test(file.name) || file.type.includes('json');
+    try {
+      if (isWav) {
+        const ir = await loadIrFile(file);
+        setActiveIrId(ir.id);
+        toast({ title: 'IR loaded', description: `${ir.name} • ${ir.duration.toFixed(2)}s` });
+      } else if (isJson) {
+        const result = await importPresets(file, 'merge');
+        toast({ title: 'Presets imported', description: `Added ${result.added} of ${result.total}` });
+      } else {
+        toast({ title: 'Unsupported file', description: 'Use .wav for IRs or .json for presets', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Load failed', description: err instanceof Error ? err.message : 'Invalid file', variant: 'destructive' });
     }
   };
 
@@ -570,6 +613,33 @@ export function StudioView() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Tonality Loader (IR + Preset JSON unified) */}
+                  <div className="p-3 rounded-xl bg-secondary/30 border border-border space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium">🎛️ Load Tonality</p>
+                      <input
+                        ref={tonalityInputRef}
+                        type="file"
+                        accept=".wav,.json,audio/wav,application/json"
+                        className="hidden"
+                        onChange={handleTonalityFile}
+                      />
+                      <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => tonalityInputRef.current?.click()}>
+                        <Upload className="w-3 h-3 mr-1" /> Load .wav / .json
+                      </Button>
+                    </div>
+                    <IRLoader
+                      irs={irs}
+                      activeIrId={activeIrId}
+                      irWet={settings.irWet}
+                      onLoadFile={loadIrFile}
+                      onRemove={removeIr}
+                      onActivate={(ir) => setActiveIrId(ir ? ir.id : null)}
+                      onWetChange={(v) => updateSetting('irWet', v)}
+                    />
+                  </div>
+
 
                   {/* Effect Category Tabs */}
                   <div className="flex gap-1 overflow-x-auto pb-1">

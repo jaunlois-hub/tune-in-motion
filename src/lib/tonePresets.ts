@@ -21,6 +21,8 @@ const base: EffectSettings = {
   octaver: 0, octaverMix: 0.5,
   ringMod: 0, ringModFreq: 220, bitcrush: 0, bitcrushBits: 8,
   autoWah: 0, autoWahSens: 0.5,
+  stutter: 0, stutterRate: 8, glitch: 0, glitchTime: 0.12,
+  warble: 0, warbleRate: 10, irWet: 0.6,
 };
 
 const p = (overrides: Partial<EffectSettings>): EffectSettings => ({ ...base, ...overrides });

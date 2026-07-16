@@ -35,6 +35,15 @@ export interface EffectSettings {
   bitcrushBits: number;   // 2..16 bit depth
   autoWah: number;        // 0..1 wet mix
   autoWahSens: number;    // 0..1 envelope sensitivity
+  // ---- "glitch" effects ----
+  stutter: number;        // 0..1 wet mix (square-wave gate)
+  stutterRate: number;    // 2..32 Hz gate rate
+  glitch: number;         // 0..1 wet mix (short high-feedback slice)
+  glitchTime: number;     // 0.03..0.3 s slice length
+  warble: number;         // 0..1 wet mix (sample-and-hold delayTime modulation)
+  warbleRate: number;     // 2..30 Hz random-step rate
+  // ---- IR (impulse response) tonality slot ----
+  irWet: number;          // 0..1 wet mix for user-loaded convolver
 }
 
 const defaultSettings: EffectSettings = {
@@ -51,6 +60,10 @@ const defaultSettings: EffectSettings = {
   ringMod: 0, ringModFreq: 220,
   bitcrush: 0, bitcrushBits: 8,
   autoWah: 0, autoWahSens: 0.5,
+  stutter: 0, stutterRate: 8,
+  glitch: 0, glitchTime: 0.12,
+  warble: 0, warbleRate: 10,
+  irWet: 0.6,
 };
 
 /**
@@ -199,6 +212,8 @@ export function useGuitarEffects() {
   const nodesRef = useRef<Record<string, AudioNode>>({});
   const noiseGateRafRef = useRef<number>(0);
   const autoWahRafRef = useRef<number>(0);
+  const warbleRafRef = useRef<number>(0);
+  const userIrBufferRef = useRef<AudioBuffer | null>(null);
   const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -536,6 +551,47 @@ export function useGuitarEffects() {
       limiter.attack.value = 0.001;
       limiter.release.value = 0.05;
 
+      // === STUTTER (square-wave gate) ===
+      // LFO with square wave modulates gain between (1-wet) and 1 → tremolo/gate effect
+      n.stutterGain = ctx.createGain();
+      (n.stutterGain as GainNode).gain.value = 1;
+      n.stutterLfo = ctx.createOscillator();
+      (n.stutterLfo as OscillatorNode).type = 'square';
+      (n.stutterLfo as OscillatorNode).frequency.value = settings.stutterRate;
+      n.stutterLfoGain = ctx.createGain();
+      (n.stutterLfoGain as GainNode).gain.value = settings.stutter * 0.5;
+      (n.stutterLfo as OscillatorNode).connect(n.stutterLfoGain as GainNode);
+      (n.stutterLfoGain as GainNode).connect((n.stutterGain as GainNode).gain);
+      (n.stutterLfo as OscillatorNode).start();
+
+      // === GLITCH (short slice with high feedback) ===
+      n.glitchDelay = ctx.createDelay(0.5);
+      (n.glitchDelay as DelayNode).delayTime.value = settings.glitchTime;
+      n.glitchFeedback = ctx.createGain();
+      (n.glitchFeedback as GainNode).gain.value = settings.glitch * 0.75;
+      n.glitchWet = ctx.createGain();
+      (n.glitchWet as GainNode).gain.value = settings.glitch;
+      n.glitchDry = ctx.createGain();
+      (n.glitchDry as GainNode).gain.value = 1;
+
+      // === WARBLE (sample-and-hold delayTime modulation) ===
+      // Tiny delay whose delayTime jumps to random values → tape-drop/granular character
+      n.warbleDelay = ctx.createDelay(0.04);
+      (n.warbleDelay as DelayNode).delayTime.value = 0.005;
+      n.warbleWet = ctx.createGain();
+      (n.warbleWet as GainNode).gain.value = settings.warble;
+      n.warbleDry = ctx.createGain();
+      (n.warbleDry as GainNode).gain.value = 1;
+
+      // === USER IR CONVOLVER (tonality slot) ===
+      // Always in graph; buffer is null until user loads an IR. Wet=0 when no buffer.
+      n.userConvolver = ctx.createConvolver();
+      (n.userConvolver as ConvolverNode).normalize = true;
+      n.userConvolverWet = ctx.createGain();
+      (n.userConvolverWet as GainNode).gain.value = 0; // starts silent (no IR loaded)
+      n.userConvolverDry = ctx.createGain();
+      (n.userConvolverDry as GainNode).gain.value = 1;
+
       // === SIGNAL CHAIN ===
       // source → noiseGateAnalyser (tap) → noiseGateGain → compressor → preDistFilter → EQ
       source.connect(n.noiseGateAnalyser);
@@ -563,8 +619,17 @@ export function useGuitarEffects() {
         cabOut = n.cabLow;
       }
 
+      // → user IR convolver (tonality slot) — wet/dry mix around cabOut
+      cabOut.connect(n.userConvolver as ConvolverNode);
+      (n.userConvolver as ConvolverNode).connect(n.userConvolverWet as GainNode);
+      cabOut.connect(n.userConvolverDry as GainNode);
+      const userIrMerge = ctx.createGain();
+      n.userIrMerge = userIrMerge;
+      (n.userConvolverWet as GainNode).connect(userIrMerge);
+      (n.userConvolverDry as GainNode).connect(userIrMerge);
+
       // → post-cab tone stack
-      cabOut.connect(n.postEqBass);
+      userIrMerge.connect(n.postEqBass);
       (n.postEqBass as BiquadFilterNode).connect(n.postEqMid);
       (n.postEqMid as BiquadFilterNode).connect(n.postEqTreble);
       const postCab: AudioNode = n.postEqTreble;
@@ -651,14 +716,37 @@ export function useGuitarEffects() {
       (n.autoWahWet as GainNode).connect(autoWahMerge);
       (n.autoWahDry as GainNode).connect(autoWahMerge);
 
-      // → delay (with filtered feedback)
-      autoWahMerge.connect(n.delay as DelayNode);
+      // → warble (parallel wet delay w/ S&H modulated delayTime)
+      autoWahMerge.connect(n.warbleDelay as DelayNode);
+      (n.warbleDelay as DelayNode).connect(n.warbleWet as GainNode);
+      autoWahMerge.connect(n.warbleDry as GainNode);
+      const warbleMerge = ctx.createGain();
+      n.warbleMerge = warbleMerge;
+      (n.warbleWet as GainNode).connect(warbleMerge);
+      (n.warbleDry as GainNode).connect(warbleMerge);
+
+      // → glitch (short high-feedback slice) — parallel wet delay
+      warbleMerge.connect(n.glitchDelay as DelayNode);
+      (n.glitchDelay as DelayNode).connect(n.glitchFeedback as GainNode);
+      (n.glitchFeedback as GainNode).connect(n.glitchDelay as DelayNode);
+      (n.glitchDelay as DelayNode).connect(n.glitchWet as GainNode);
+      warbleMerge.connect(n.glitchDry as GainNode);
+      const glitchMerge = ctx.createGain();
+      n.glitchMerge = glitchMerge;
+      (n.glitchWet as GainNode).connect(glitchMerge);
+      (n.glitchDry as GainNode).connect(glitchMerge);
+
+      // → stutter (square-wave gate on gain, inline)
+      glitchMerge.connect(n.stutterGain as GainNode);
+
+      // → delay (with filtered feedback), fed from stutter output
+      (n.stutterGain as GainNode).connect(n.delay as DelayNode);
       (n.delay as DelayNode).connect(n.delayFilter as BiquadFilterNode);
       (n.delayFilter as BiquadFilterNode).connect(n.delayDamping as BiquadFilterNode);
       (n.delayDamping as BiquadFilterNode).connect(n.delayGain as GainNode);
       (n.delayGain as GainNode).connect(n.delay as DelayNode);
       (n.delayGain as GainNode).connect(n.dryGain as GainNode);
-      autoWahMerge.connect(n.dryGain as GainNode);
+      (n.stutterGain as GainNode).connect(n.dryGain as GainNode);
 
       // → reverb → limiter → output
       (n.dryGain as GainNode).connect(n.convolver as ConvolverNode);
@@ -734,6 +822,31 @@ export function useGuitarEffects() {
       };
       autoWahRafRef.current = requestAnimationFrame(pollWah);
 
+      // === WARBLE: sample-and-hold LFO on warbleDelay.delayTime ===
+      // Jumps to a random delay time at warbleRate Hz — creates chopped/grain wobble
+      let nextWarbleAt = 0;
+      const pollWarble = () => {
+        if (!audioContextRef.current) return;
+        const wd = nodesRef.current.warbleDelay as DelayNode | undefined;
+        if (!wd) return;
+        const now = audioContextRef.current.currentTime;
+        if (now >= nextWarbleAt) {
+          const rate = Math.max(0.5, settingsRef.current.warbleRate);
+          nextWarbleAt = now + 1 / rate;
+          // Random delay 0..30ms — audible pitch/grain jumps
+          const t = Math.random() * 0.03;
+          wd.delayTime.setTargetAtTime(t, now, 0.001);
+        }
+        warbleRafRef.current = requestAnimationFrame(pollWarble);
+      };
+      warbleRafRef.current = requestAnimationFrame(pollWarble);
+
+      // Re-apply user IR buffer if one was loaded before the effects were started
+      if (userIrBufferRef.current && n.userConvolver) {
+        (n.userConvolver as ConvolverNode).buffer = userIrBufferRef.current;
+        (n.userConvolverWet as GainNode).gain.value = settings.irWet;
+      }
+
       setIsActive(true);
       setError(null);
     } catch { setError('Could not access microphone for effects processing'); }
@@ -746,7 +859,8 @@ export function useGuitarEffects() {
   const stop = useCallback(() => {
     if (noiseGateRafRef.current) cancelAnimationFrame(noiseGateRafRef.current);
     if (autoWahRafRef.current) cancelAnimationFrame(autoWahRafRef.current);
-    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc'].forEach(k => {
+    if (warbleRafRef.current) cancelAnimationFrame(warbleRafRef.current);
+    ['chorusLfo', 'chorusLfo2', 'flangerLfo', 'phaserLfo', 'tremoloLfo', 'ringModOsc', 'stutterLfo'].forEach(k => {
       try { (nodesRef.current[k] as OscillatorNode)?.stop(); } catch { /* already stopped */ }
     });
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -826,6 +940,21 @@ export function useGuitarEffects() {
     // Auto-wah (depth is mix; freq sweep handled by rAF using autoWahSens ref)
     if (n.autoWahWet) (n.autoWahWet as GainNode).gain.value = settings.autoWah;
     if (n.autoWahDry) (n.autoWahDry as GainNode).gain.value = 1 - settings.autoWah * 0.5;
+    // Stutter (square-wave gate)
+    if (n.stutterLfoGain) (n.stutterLfoGain as GainNode).gain.value = settings.stutter * 0.5;
+    if (n.stutterGain) (n.stutterGain as GainNode).gain.value = 1 - settings.stutter * 0.5;
+    if (n.stutterLfo) (n.stutterLfo as OscillatorNode).frequency.value = settings.stutterRate;
+    // Glitch (short slice)
+    if (n.glitchDelay) (n.glitchDelay as DelayNode).delayTime.value = settings.glitchTime;
+    if (n.glitchFeedback) (n.glitchFeedback as GainNode).gain.value = settings.glitch * 0.75;
+    if (n.glitchWet) (n.glitchWet as GainNode).gain.value = settings.glitch;
+    // Warble (rate handled by rAF via settingsRef; wet mix here)
+    if (n.warbleWet) (n.warbleWet as GainNode).gain.value = settings.warble;
+    if (n.warbleDry) (n.warbleDry as GainNode).gain.value = 1 - settings.warble * 0.5;
+    // User IR wet mix (only audible when a buffer is loaded)
+    if (n.userConvolverWet) {
+      (n.userConvolverWet as GainNode).gain.value = userIrBufferRef.current ? settings.irWet : 0;
+    }
     // Cabinet type — IR path: swap convolver buffer; biquad path: retune filters.
     if (n.cabConvolver) {
       const buf = cabBuffersRef.current[cabinetType];
@@ -847,6 +976,19 @@ export function useGuitarEffects() {
     }
   }, [settings, isActive, cabinetType]);
 
+  /**
+   * Load a user-supplied impulse response into the tonality convolver slot.
+   * Pass null to unload (silences the convolver wet path).
+   * Buffer stays in the ref so it survives start/stop cycles.
+   */
+  const setImpulseResponse = useCallback((buffer: AudioBuffer | null) => {
+    userIrBufferRef.current = buffer;
+    const conv = nodesRef.current.userConvolver as ConvolverNode | undefined;
+    const wet = nodesRef.current.userConvolverWet as GainNode | undefined;
+    if (conv) conv.buffer = buffer;
+    if (wet) wet.gain.value = buffer ? settingsRef.current.irWet : 0;
+  }, []);
+
   const updateSetting = useCallback((key: keyof EffectSettings, value: number) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -855,5 +997,5 @@ export function useGuitarEffects() {
 
   useEffect(() => { return () => { stop(); }; }, [stop]);
 
-  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType };
+  return { isActive, settings, error, start, stop, updateSetting, resetSettings, cabinetType, setCabinetType, setImpulseResponse, hasImpulseResponse: !!userIrBufferRef.current };
 }

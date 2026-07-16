@@ -1,166 +1,48 @@
-# Feedback Loop Detector for Audio Diagnostics
+## Add Strange FX + Tonality Loader (IRs & Preset JSON)
 
-## Goal
+### 1. New weird guitar effects
+Extend `src/hooks/useGuitarEffects.ts` and `EffectSettings` with three new guitar-only effects, chained in series after Bitcrusher:
 
-Automatically flag the exact Web Audio pattern that caused our squelch bug:
-a `DelayNode` whose output reaches a `GainNode` that connects back into the
-same `DelayNode`'s input (a Karplus-Strong style feedback loop). When such a
-cycle appears in the live graph, show a clear warning in the diagnostics
-panel with the feedback gain value and the owning feature.
+- **Granular Stutter** — `ScriptProcessorNode`-free implementation using a rolling `AudioBuffer` written from a `MediaStreamAudioDestinationNode` tap, replayed via `AudioBufferSourceNode` grains scheduled on `currentTime`. Params: grain size (20–200ms), density, jitter, wet mix.
+- **Glitch Repeater** — captures the last N ms into a buffer and re-triggers it 2/4/8 times synced to BPM (uses existing `useBpmSync`). Params: slice length, repeats, pitch drift, wet.
+- **Reverse Slicer** — same capture buffer, played back with `playbackRate = -1` at slice boundaries. Params: slice length, wet.
 
-The Web Audio API has no built-in way to enumerate a node's connections, so
-we must instrument the graph ourselves at node-creation and `.connect()` time.
+All three share one capture buffer (rolling 2 s) to keep the graph light. Each effect gets bypass + wet/dry gain and is registered with the existing feedback-loop inspector.
 
-## Scope
+### 2. Studio UI additions
+Update `src/components/studio/StudioView.tsx`:
+- New **"🌀 Glitch"** category with sliders for the three effects.
+- Two new **Weird presets**: **Stutter Storm**, **Reverse Ghost**.
 
-In scope:
-- Track DelayNodes, GainNodes, and BiquadFilterNodes (filters are commonly in
-  the loop between delay and gain) created on the shared `AudioContext`.
-- Patch `AudioNode.prototype.connect` / `disconnect` on those nodes to
-  maintain an adjacency map.
-- On each connect, run a small bounded DFS from any new DelayNode output to
-  see if it can reach itself through a path that includes a GainNode.
-- Attribute each cycle to the current `withAudioFeature(...)` label.
-- Surface findings as a new "Warnings" section (and tab badge) in
-  `AudioDiagnosticsPanel`, including: feature, feedback gain value, path
-  length, and node IDs.
-- Include warnings in the JSON snapshot export.
+### 3. Tonality loader — IRs (cabinet/reverb impulse responses)
+New hook `src/hooks/useImpulseResponses.ts`:
+- Load `.wav` file via `<input type=file>` → `arrayBuffer` → `audioContext.decodeAudioData` → cached `AudioBuffer`.
+- Store metadata (name, size, sample rate, duration, id) + buffer in memory; persist metadata (not buffer) in `localStorage` under `guitar-ir-library`. On reload, user re-picks the file if they want it back (buffers can't be persisted).
+- Optional built-in IR slots via `public/ir/` (README already exists there).
 
-Out of scope:
-- Auto-killing offending nodes (we already have PANIC STOP).
-- Detecting loops inside `OfflineAudioContext` (our pluck render uses one,
-  but it's short-lived and intentional — would just create noise).
-- Convolver / WaveShaper graph analysis.
+Wire into `useGuitarEffects.ts`:
+- Add a `ConvolverNode` slot placed after cabinet sim / before master. `setImpulseResponse(buffer | null)` swaps `convolver.buffer`. Wet/dry gain + bypass.
+- New `EffectSettings.convolverWet` field.
 
-## Files
+New UI panel `src/components/studio/IRLoader.tsx` inside StudioView "🔊 Cabinet & IR" section:
+- File picker (accept `.wav`), list of loaded IRs, load/unload buttons, wet slider.
 
-New:
-- `src/lib/audioGraphInspector.ts` — graph tracking + cycle detection.
+### 4. Tonality loader — Preset JSON (already partly built)
+Existing `useCustomPresets.ts` already imports/exports preset JSON — extend the loader so a single dropped/picked file that looks like an IR (`.wav`) goes to the IR loader and a `.json` goes to preset import. Add a unified "**Load Tonality**" button in StudioView header that opens a picker accepting both, routes by extension.
 
-Edited:
-- `src/lib/audioDiagnostics.ts` — add `feedbackWarnings` to store and include
-  it in `DiagnosticsSnapshot`.
-- `src/lib/sharedAudioContext.ts` — call `installGraphInspector(ctx)` next
-  to `installDiagnostics(ctx)`.
-- `src/components/diagnostics/AudioDiagnosticsPanel.tsx` — render warnings
-  banner in the status strip and a "Warnings" list (under Activity tab or
-  as its own small section above the tabs).
+### 5. Files
+**Create**
+- `src/hooks/useImpulseResponses.ts`
+- `src/components/studio/IRLoader.tsx`
 
-No changes to feature audio code (`pluckedSynth.ts`, hooks, etc.). Detection
-is purely observational — if a loop exists it gets reported, regardless of
-whether it's intentional.
+**Edit**
+- `src/hooks/useGuitarEffects.ts` — add Granular/Glitch/Reverse nodes, ConvolverNode slot, new `EffectSettings` fields.
+- `src/components/studio/StudioView.tsx` — 🌀 Glitch category, 2 new presets, IR loader panel, unified "Load Tonality" button.
+- `src/lib/tonePresets.ts` — Stutter Storm + Reverse Ghost presets.
+- `src/lib/audioGraphInspector.ts` — register new nodes so feedback-loop detector covers them.
 
-## Technical Details
-
-### Graph tracking (`audioGraphInspector.ts`)
-
-```ts
-type NodeKind = 'delay' | 'gain' | 'filter' | 'other';
-interface TrackedNode {
-  id: number;
-  kind: NodeKind;
-  feature: string;
-  ref: WeakRef<AudioNode>;
-  // for gain nodes only — used in warning payload
-  gainValue?: () => number;
-  // for delay nodes — current delayTime
-  delayTime?: () => number;
-}
-// adjacency: srcId -> Set<dstId>
-const edges = new Map<number, Set<number>>();
-const nodes = new Map<number, TrackedNode>();
-```
-
-`installGraphInspector(ctx)`:
-1. Patch `ctx.createDelay`, `ctx.createGain`, `ctx.createBiquadFilter` to
-   assign each returned node a hidden `__diagId` and register it in `nodes`
-   with `currentFeature()` (reuse the existing `featureStack` — export an
-   accessor from `audioDiagnostics.ts`).
-2. Patch `AudioNode.prototype.connect` once globally (guarded by a
-   `Symbol.for('lov-graph-patched')` flag on the prototype) so that when
-   both src and dst have `__diagId` we add the edge and run
-   `checkForFeedback(srcId)`.
-3. Patch `disconnect` to remove edges (best-effort — when called without
-   args, drop all outgoing edges for that node).
-4. Periodically sweep `nodes` and drop entries whose `WeakRef.deref()` is
-   gone, plus their edges and any warnings referencing them.
-
-### Cycle check
-
-`checkForFeedback(startDelayId)`:
-- Only run when the just-added edge originates from a delay node, OR when
-  the just-added edge points back into a delay node (cheap heuristic — a
-  feedback loop must include at least one such edge).
-- Bounded DFS from the delay node's outgoing edges, depth ≤ 6, visiting
-  each id once. If we reach `startDelayId` again AND the path contains at
-  least one gain node, record a warning:
-
-```ts
-interface FeedbackWarning {
-  id: string;            // stable hash of delayId + gainId
-  feature: string;
-  delayId: number;
-  gainId: number;
-  gainValue: number;     // sampled at detection time
-  delayTimeSec: number;
-  pathLength: number;
-  detectedAt: number;    // performance.now()
-}
-```
-
-- Warnings are deduped by `id`; if the gain value later changes, update the
-  existing warning rather than appending. (We poll gain values every ~500ms
-  inside the existing diagnostics interval and refresh `gainValue` on each
-  known warning so the UI shows current values.)
-
-### Diagnostics store additions (`audioDiagnostics.ts`)
-
-```ts
-interface DiagnosticsState {
-  // ...existing...
-  feedbackWarnings: FeedbackWarning[];
-}
-export function reportFeedbackWarning(w: FeedbackWarning): void;
-export function clearFeedbackWarnings(): void;
-```
-
-`buildDiagnosticsSnapshot()` gains a `feedbackWarnings` field.
-
-### UI changes (`AudioDiagnosticsPanel.tsx`)
-
-- Status strip: if `feedbackWarnings.length > 0`, show a destructive badge
-  `⚠ ${n} feedback loop${n>1?'s':''}` next to the existing high-freq danger
-  badge.
-- New `Warnings` block rendered above the tabs (only when non-empty), one
-  row per warning:
-
-  ```
-  ⚠  chord-library   delay#42 → gain#43 (×0.997) → delay#42
-                     delay 5.10 ms · path len 2 · 2s ago      [Dismiss]
-  ```
-
-  Gains ≥ 0.95 are styled with the existing destructive token; below that,
-  with the warning/muted token. Dismiss removes that warning id; if the
-  cycle still exists on the next connect, it reappears.
-- Warnings included in JSON snapshot automatically.
-
-## Limitations (documented in code comments)
-
-- `AudioNode.prototype.connect` is patched globally per page; we guard with
-  a symbol so HMR doesn't double-patch.
-- Detection is best-effort: connections made before the inspector is
-  installed (none in practice — `installGraphInspector` runs at first
-  context creation) or via `AudioParam` targets are ignored. Param targets
-  can't form an audible feedback loop on their own without a node edge, so
-  this is safe.
-- We do not patch `OfflineAudioContext`, so the intentional Karplus loop
-  inside `ensurePluckBuffer` won't trigger warnings.
-
-## Acceptance
-
-1. Loading the app in dev with no audio playing → no warnings.
-2. If a future regression reintroduces a `delay → gain(>0.9) → delay` loop
-   on the shared context, the panel shows the warning within one connect
-   call, including feature name and gain value.
-3. Snapshot JSON includes `feedbackWarnings: []` (or populated array).
-4. PANIC STOP and existing tabs continue to work unchanged.
+### Technical notes
+- Rolling capture buffer uses one `AudioWorkletNode` (fallback to `ScriptProcessorNode` if unavailable) writing into a `Float32Array` ring buffer; grain scheduling reads from that ring via `AudioBuffer` snapshots.
+- Convolver placement matters: post-cabinet, pre-limiter, else IRs sound thin.
+- IR buffers stay in memory only — clarified in the UI ("Re-load after refresh").
+- All effects are guitar-signal-only; no changes to vocal path.
