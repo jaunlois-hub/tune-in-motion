@@ -212,6 +212,8 @@ export function useGuitarEffects() {
   const nodesRef = useRef<Record<string, AudioNode>>({});
   const noiseGateRafRef = useRef<number>(0);
   const autoWahRafRef = useRef<number>(0);
+  const warbleRafRef = useRef<number>(0);
+  const userIrBufferRef = useRef<AudioBuffer | null>(null);
   const releaseCtxRef = useRef<(() => void) | null>(null);
   const releaseMasterRef = useRef<(() => void) | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
